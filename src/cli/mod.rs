@@ -78,6 +78,18 @@ pub struct NewArgs {
     #[arg(long, value_enum, default_value = "standalone")]
     pub redis_mode: RedisMode,
 
+    /// Build tool (maven or gradle)
+    #[arg(long, value_enum, default_value = "maven")]
+    pub build_tool: BuildTool,
+
+    /// Gradle DSL (kotlin or groovy), only used when build_tool is gradle
+    #[arg(long, value_enum, default_value = "kotlin")]
+    pub gradle_dsl: GradleDsl,
+
+    /// Skip automatic code formatting after generation
+    #[arg(long)]
+    pub skip_format: bool,
+
     /// Output directory (defaults to ./<project-name>)
     #[arg(long, value_name = "DIR")]
     pub output: Option<std::path::PathBuf>,
@@ -145,6 +157,18 @@ pub enum RedisMode {
     Ssl,
     Sentinel,
     Cluster,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
+pub enum BuildTool {
+    Maven,
+    Gradle,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
+pub enum GradleDsl {
+    Kotlin,
+    Groovy,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -275,23 +299,54 @@ fn interactive_init() -> Result<NewArgs> {
         .interact_text()?;
 
     let group: String = Input::with_theme(&theme)
-        .with_prompt("Group ID")
-        .default(format!("com.{}", name.to_lowercase().replace('-', "")))
+        .with_prompt("Group ID (e.g., com.example)")
+        .default("com.example".to_string())
         .interact_text()?;
 
     let boot_versions = vec!["3.2.5", "3.3.0", "3.1.12"];
     let boot_idx = Select::with_theme(&theme)
-        .with_prompt("Spring Boot version")
+        .with_prompt("Spring Boot version (default: 3.2.5)")
         .items(&boot_versions)
         .default(0)
         .interact()?;
 
     let java_versions = vec!["21", "17", "11"];
     let java_idx = Select::with_theme(&theme)
-        .with_prompt("Java version")
+        .with_prompt("Java version (default: 21)")
         .items(&java_versions)
         .default(0)
         .interact()?;
+
+    let build_tools = vec!["Maven", "Gradle"];
+    let build_tool_idx = Select::with_theme(&theme)
+        .with_prompt("Build tool (default: Maven)")
+        .items(&build_tools)
+        .default(0)
+        .interact()?;
+
+    let build_tool = match build_tool_idx {
+        0 => BuildTool::Maven,
+        1 => BuildTool::Gradle,
+        _ => BuildTool::Maven,
+    };
+
+    // Prompt for Gradle DSL only if Gradle is selected
+    let gradle_dsl = if build_tool == BuildTool::Gradle {
+        let dsl_options = vec!["Kotlin (build.gradle.kts)", "Groovy (build.gradle)"];
+        let dsl_idx = Select::with_theme(&theme)
+            .with_prompt("Gradle DSL (default: Kotlin)")
+            .items(&dsl_options)
+            .default(0)
+            .interact()?;
+        
+        match dsl_idx {
+            0 => GradleDsl::Kotlin,
+            1 => GradleDsl::Groovy,
+            _ => GradleDsl::Kotlin,
+        }
+    } else {
+        GradleDsl::Kotlin // Default, not used for Maven
+    };
 
     let feature_options = vec![
         ("redis", "Redis cache & pub/sub (standalone)"),
@@ -344,6 +399,9 @@ fn interactive_init() -> Result<NewArgs> {
         java_version: java_versions[java_idx].parse()?,
         features,
         redis_mode,
+        build_tool,
+        gradle_dsl,
+        skip_format: false,
         output: None,
         force: false,
         emit_config: true,

@@ -627,6 +627,8 @@ impl ProjectAnalyzer {
                 description: format!("{} — imported by SpringGen", report.project_name),
                 java_version: report.java_version,
                 boot_version: report.boot_version.clone(),
+                build_tool: "maven".into(), // Default to Maven for imported projects
+                gradle_dsl: "kotlin".into(), // Default to Kotlin DSL
             },
             features,
             redis,

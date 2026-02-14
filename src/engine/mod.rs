@@ -54,9 +54,20 @@ impl GenerationEngine {
         // ── 6. Progress bar ──────────────────────────────────────────────────
         let pb = self.progress_bar(7 + features.len() as u64);
 
-        // ── 7. Generate pom.xml ──────────────────────────────────────────────
-        pb.set_message("Generating pom.xml");
-        PomGenerator::new(&config, &features).generate(&out_dir)?;
+        // ── 7. Generate build file (pom.xml or build.gradle.kts) ────────────
+        match config.project.build_tool.as_str() {
+            "maven" => {
+                pb.set_message("Generating pom.xml");
+                PomGenerator::new(&config, &features).generate(&out_dir)?;
+            }
+            "gradle" => {
+                pb.set_message("Generating build.gradle.kts");
+                crate::generators::gradle::GradleGenerator::new(&config, &features).generate(&out_dir)?;
+            }
+            _ => {
+                anyhow::bail!("Unsupported build tool: {}", config.project.build_tool);
+            }
+        }
         pb.inc(1);
 
         // ── 8. Generate application.yml ─────────────────────────────────────
@@ -111,6 +122,11 @@ impl GenerationEngine {
 
         pb.finish_with_message("Done!");
 
+        // ── 16. Auto-format generated code ───────────────────────────────────
+        if !args.skip_format {
+            self.run_formatter(&out_dir, &config)?;
+        }
+
         self.print_success(&args.name, &out_dir, &features, &config);
 
         Ok(())
@@ -155,11 +171,19 @@ impl GenerationEngine {
         };
         let features = resolve_features(&all_features)?;
 
-        // Append to pom.xml, application.yml, docker-compose.yml
+        // Append to build file, application.yml, docker-compose.yml
         let pb = self.progress_bar(4);
 
-        pb.set_message("Updating pom.xml");
-        PomGenerator::new(&config, &features).generate(&args.path)?;
+        pb.set_message("Updating build file");
+        match config.project.build_tool.as_str() {
+            "maven" => {
+                PomGenerator::new(&config, &features).generate(&args.path)?;
+            }
+            "gradle" => {
+                crate::generators::gradle::GradleGenerator::new(&config, &features).generate(&args.path)?;
+            }
+            _ => {}
+        }
         pb.inc(1);
 
         pb.set_message("Updating application.yml");
@@ -261,6 +285,11 @@ impl GenerationEngine {
 target/
 !.mvn/wrapper/maven-wrapper.jar
 
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
 # IDE
 .idea/
 *.iml
@@ -291,6 +320,53 @@ src/main/resources/ssl/*.jks
 springgen.lock
 "#;
         std::fs::write(out.join(".gitignore"), content)?;
+        Ok(())
+    }
+
+    fn run_formatter(&self, out: &Path, config: &ProjectConfig) -> Result<()> {
+        use console::style;
+        use std::process::Command;
+
+        println!("\n{} Formatting generated code...", style("→").cyan());
+
+        let (cmd, args) = match config.project.build_tool.as_str() {
+            "gradle" => {
+                let gradlew = if cfg!(windows) { "gradlew.bat" } else { "./gradlew" };
+                (gradlew.to_string(), vec!["spotlessApply"])
+            }
+            _ => {
+                let mvnw = if cfg!(windows) { "mvnw.cmd" } else { "./mvnw" };
+                (mvnw.to_string(), vec!["spotless:apply"])
+            }
+        };
+
+        let output = Command::new(&cmd)
+            .args(&args)
+            .current_dir(out)
+            .output();
+
+        match output {
+            Ok(result) => {
+                if result.status.success() {
+                    println!("  {} Code formatted successfully", style("✓").green());
+                } else {
+                    let stderr = String::from_utf8_lossy(&result.stderr);
+                    eprintln!(
+                        "  {} Formatting failed (non-fatal): {}",
+                        style("⚠").yellow(),
+                        stderr.lines().next().unwrap_or("unknown error")
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "  {} Could not run formatter (non-fatal): {}",
+                    style("⚠").yellow(),
+                    e
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -366,7 +442,15 @@ springgen.lock
         println!("\n  {}", style("Next steps:").bold());
         println!("    cd {}", name);
         println!("    docker-compose up -d     # Start infrastructure");
-        println!("    ./mvnw spring-boot:run   # Start the app");
+        
+        match config.project.build_tool.as_str() {
+            "gradle" => {
+                println!("    ./gradlew bootRun        # Start the app");
+            }
+            _ => {
+                println!("    ./mvnw spring-boot:run   # Start the app");
+            }
+        }
 
         if let Some(boot) = config.project.boot_version.chars().next() {
             let _ = boot;
