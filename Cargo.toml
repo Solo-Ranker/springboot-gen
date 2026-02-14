@@ -1,0 +1,51 @@
+[package]
+name = "springgen"
+version = "0.1.0"
+edition = "2021"
+authors = ["Visal Som"]
+description = "Production-grade Spring Boot project generator with infrastructure composition"
+repository = "https://github.com/Solo-Ranker/springgen"
+license = "MIT"
+
+[[bin]]
+name = "springgen"
+path = "src/main.rs"
+
+[dependencies]
+# CLI
+clap = { version = "4.5", features = ["derive", "color", "wrap_help"] }
+dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+indicatif = { version = "0.17", features = ["improved_unicode"] }
+console = "0.15"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+serde_yaml = "0.9"
+
+# Template rendering
+tera = "1.20"
+handlebars = "5.1"
+once_cell = "1.19"
+
+# File system
+walkdir = "2.5"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0.18"
+
+# Utilities
+regex = "1.10"
+semver = { version = "1.0", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+indexmap = { version = "2.2", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
