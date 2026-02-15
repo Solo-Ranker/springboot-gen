@@ -20,12 +20,17 @@ impl GenerationEngine {
     }
 
     /// Main entry — generates a full project
-    pub fn generate_project(&self, args: NewArgs, preview: bool) -> Result<()> {
+    pub fn generate_project(
+        &self,
+        args: NewArgs,
+        config_override: Option<ProjectConfig>,
+        preview: bool,
+    ) -> Result<()> {
         // ── 1. Resolve features (includes transitive deps) ──────────────────
         let features = resolve_features(&args.features)?;
 
         // ── 2. Build config ──────────────────────────────────────────────────
-        let config = ProjectConfig::from_new_args(&args);
+        let config = config_override.unwrap_or_else(|| ProjectConfig::from_new_args(&args));
 
         // ── 3. Determine output path ─────────────────────────────────────────
         let out_dir = args
@@ -62,7 +67,8 @@ impl GenerationEngine {
             }
             "gradle" => {
                 pb.set_message("Generating build.gradle.kts");
-                crate::generators::gradle::GradleGenerator::new(&config, &features).generate(&out_dir)?;
+                crate::generators::gradle::GradleGenerator::new(&config, &features)
+                    .generate(&out_dir)?;
             }
             _ => {
                 anyhow::bail!("Unsupported build tool: {}", config.project.build_tool);
@@ -180,7 +186,8 @@ impl GenerationEngine {
                 PomGenerator::new(&config, &features).generate(&args.path)?;
             }
             "gradle" => {
-                crate::generators::gradle::GradleGenerator::new(&config, &features).generate(&args.path)?;
+                crate::generators::gradle::GradleGenerator::new(&config, &features)
+                    .generate(&args.path)?;
             }
             _ => {}
         }
@@ -331,7 +338,11 @@ springgen.lock
 
         let (cmd, args) = match config.project.build_tool.as_str() {
             "gradle" => {
-                let gradlew = if cfg!(windows) { "gradlew.bat" } else { "./gradlew" };
+                let gradlew = if cfg!(windows) {
+                    "gradlew.bat"
+                } else {
+                    "./gradlew"
+                };
                 (gradlew.to_string(), vec!["spotlessApply"])
             }
             _ => {
@@ -340,10 +351,7 @@ springgen.lock
             }
         };
 
-        let output = Command::new(&cmd)
-            .args(&args)
-            .current_dir(out)
-            .output();
+        let output = Command::new(&cmd).args(&args).current_dir(out).output();
 
         match output {
             Ok(result) => {
@@ -442,7 +450,7 @@ springgen.lock
         println!("\n  {}", style("Next steps:").bold());
         println!("    cd {}", name);
         println!("    docker-compose up -d     # Start infrastructure");
-        
+
         match config.project.build_tool.as_str() {
             "gradle" => {
                 println!("    ./gradlew bootRun        # Start the app");

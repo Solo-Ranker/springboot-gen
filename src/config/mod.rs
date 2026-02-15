@@ -16,6 +16,12 @@ pub struct ProjectConfig {
     pub kafka: KafkaConfig,
 
     #[serde(default)]
+    pub rabbitmq: RabbitMqConfig,
+
+    #[serde(default)]
+    pub ibmmq: IbmMqConfig,
+
+    #[serde(default)]
     pub database: DatabaseConfig,
 
     #[serde(default)]
@@ -144,6 +150,42 @@ pub struct KafkaSaslConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RabbitMqConfig {
+    #[serde(default = "default_rabbitmq_host")]
+    pub host: String,
+
+    #[serde(default = "default_rabbitmq_port")]
+    pub port: u16,
+
+    #[serde(default = "default_rabbitmq_user")]
+    pub username: String,
+
+    #[serde(default = "default_rabbitmq_password")]
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct IbmMqConfig {
+    #[serde(default = "default_ibmmq_qm")]
+    pub queue_manager: String,
+
+    #[serde(default = "default_ibmmq_channel")]
+    pub channel: String,
+
+    #[serde(default = "default_ibmmq_host")]
+    pub host: String,
+
+    #[serde(default = "default_ibmmq_port")]
+    pub port: u16,
+
+    #[serde(default = "default_ibmmq_user")]
+    pub username: String,
+
+    #[serde(default)]
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DatabaseConfig {
     #[serde(default = "default_db_host")]
     pub host: String,
@@ -241,6 +283,33 @@ fn default_offset_reset() -> String {
 }
 fn default_listener_concurrency() -> u8 {
     3
+}
+fn default_rabbitmq_host() -> String {
+    "localhost".into()
+}
+fn default_rabbitmq_port() -> u16 {
+    5672
+}
+fn default_rabbitmq_user() -> String {
+    "guest".into()
+}
+fn default_rabbitmq_password() -> String {
+    "guest".into()
+}
+fn default_ibmmq_qm() -> String {
+    "QM1".into()
+}
+fn default_ibmmq_channel() -> String {
+    "DEV.APP.SVRCONN".into()
+}
+fn default_ibmmq_host() -> String {
+    "localhost".into()
+}
+fn default_ibmmq_port() -> u16 {
+    1414
+}
+fn default_ibmmq_user() -> String {
+    "app".into()
 }
 fn default_db_host() -> String {
     "localhost".into()
@@ -392,6 +461,8 @@ impl ProjectConfig {
                 ..Default::default()
             },
             kafka: KafkaConfig::default(),
+            rabbitmq: RabbitMqConfig::default(),
+            ibmmq: IbmMqConfig::default(),
             database: DatabaseConfig::default(),
             security: SecurityConfig::default(),
             docker: DockerConfig::default(),

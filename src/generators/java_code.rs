@@ -16,32 +16,36 @@ pub struct JavaCodeGenerator<'a> {
 impl<'a> JavaCodeGenerator<'a> {
     pub fn new(config: &'a ProjectConfig, features: &'a [FeatureSpec]) -> Result<Self> {
         let mut handlebars = Handlebars::new();
-        
+
         // Register templates from the templates/java directory
         // For now, we'll register inline templates for the ones we created
         // In production, you'd load from files
         handlebars.register_template_string(
             "Application",
-            include_str!("../../templates/java/Application.java.hbs")
+            include_str!("../../templates/java/Application.java.hbs"),
         )?;
         handlebars.register_template_string(
             "RedisConfig",
-            include_str!("../../templates/java/RedisConfig.java.hbs")
+            include_str!("../../templates/java/RedisConfig.java.hbs"),
         )?;
         handlebars.register_template_string(
             "ApiResponse",
-            include_str!("../../templates/java/ApiResponse.java.hbs")
+            include_str!("../../templates/java/ApiResponse.java.hbs"),
         )?;
         handlebars.register_template_string(
             "GlobalExceptionHandler",
-            include_str!("../../templates/java/GlobalExceptionHandler.java.hbs")
+            include_str!("../../templates/java/GlobalExceptionHandler.java.hbs"),
         )?;
         handlebars.register_template_string(
             "HealthController",
-            include_str!("../../templates/java/HealthController.java.hbs")
+            include_str!("../../templates/java/HealthController.java.hbs"),
         )?;
-        
-        Ok(Self { config, features, handlebars })
+
+        Ok(Self {
+            config,
+            features,
+            handlebars,
+        })
     }
 
     pub fn generate(&self, out: &Path, package_path: &str, artifact: &str) -> Result<()> {

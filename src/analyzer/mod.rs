@@ -7,8 +7,8 @@ use walkdir::WalkDir;
 
 use crate::cli::{AnalyzeFormat, ImportArgs};
 use crate::config::{
-    DatabaseConfig, DockerConfig, KafkaConfig, ProjectConfig, ProjectMeta, RedisConfig,
-    RedisSentinelConfig, RedisSslConfig, SecurityConfig,
+    DatabaseConfig, DockerConfig, IbmMqConfig, KafkaConfig, ProjectConfig, ProjectMeta,
+    RabbitMqConfig, RedisConfig, RedisSentinelConfig, RedisSslConfig, SecurityConfig,
 };
 
 /// Inspection result from scanning an existing project
@@ -637,6 +637,8 @@ impl ProjectAnalyzer {
                 port: db_port,
                 ..Default::default()
             },
+            rabbitmq: RabbitMqConfig::default(),
+            ibmmq: IbmMqConfig::default(),
             security: SecurityConfig::default(),
             docker: DockerConfig::default(),
             extra_properties: IndexMap::new(),

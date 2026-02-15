@@ -25,19 +25,19 @@ impl<'a> GradleGenerator<'a> {
     fn generate_build_gradle(&self, out: &Path) -> Result<()> {
         let meta = &self.config.project;
         let is_kotlin_dsl = meta.gradle_dsl == "kotlin";
-        
+
         let content = if is_kotlin_dsl {
             self.render_build_gradle_kotlin()
         } else {
             self.render_build_gradle_groovy()
         };
-        
+
         let filename = if is_kotlin_dsl {
             "build.gradle.kts"
         } else {
             "build.gradle"
         };
-        
+
         std::fs::write(out.join(filename), content)?;
         Ok(())
     }
@@ -45,21 +45,27 @@ impl<'a> GradleGenerator<'a> {
     fn generate_settings_gradle(&self, out: &Path) -> Result<()> {
         let meta = &self.config.project;
         let is_kotlin_dsl = meta.gradle_dsl == "kotlin";
-        
+
         let content = if is_kotlin_dsl {
-            format!(r#"rootProject.name = "{}"
-"#, meta.name)
+            format!(
+                r#"rootProject.name = "{}"
+"#,
+                meta.name
+            )
         } else {
-            format!(r#"rootProject.name = '{}'
-"#, meta.name)
+            format!(
+                r#"rootProject.name = '{}'
+"#,
+                meta.name
+            )
         };
-        
+
         let filename = if is_kotlin_dsl {
             "settings.gradle.kts"
         } else {
             "settings.gradle"
         };
-        
+
         std::fs::write(out.join(filename), content)?;
         Ok(())
     }
@@ -280,11 +286,19 @@ if "%OS%"=="Windows_NT" endlocal
         let mut deps = Vec::new();
 
         // Core dependencies
-        deps.push("    implementation(\"org.springframework.boot:spring-boot-starter-web\")".to_string());
-        deps.push("    implementation(\"org.springframework.boot:spring-boot-starter-validation\")".to_string());
+        deps.push(
+            "    implementation(\"org.springframework.boot:spring-boot-starter-web\")".to_string(),
+        );
+        deps.push(
+            "    implementation(\"org.springframework.boot:spring-boot-starter-validation\")"
+                .to_string(),
+        );
         deps.push("    compileOnly(\"org.projectlombok:lombok\")".to_string());
         deps.push("    annotationProcessor(\"org.projectlombok:lombok\")".to_string());
-        deps.push("    testImplementation(\"org.springframework.boot:spring-boot-starter-test\")".to_string());
+        deps.push(
+            "    testImplementation(\"org.springframework.boot:spring-boot-starter-test\")"
+                .to_string(),
+        );
         deps.push("    testImplementation(\"org.testcontainers:junit-jupiter\")".to_string());
 
         // Feature dependencies
@@ -292,14 +306,25 @@ if "%OS%"=="Windows_NT" endlocal
             for dep in feature.maven_deps {
                 let gradle_dep = if let Some(scope) = dep.scope {
                     match scope {
-                        "test" => format!("    testImplementation(\"{}:{}\")", dep.group_id, dep.artifact_id),
-                        "provided" => format!("    compileOnly(\"{}:{}\")", dep.group_id, dep.artifact_id),
-                        _ => format!("    implementation(\"{}:{}\")", dep.group_id, dep.artifact_id),
+                        "test" => format!(
+                            "    testImplementation(\"{}:{}\")",
+                            dep.group_id, dep.artifact_id
+                        ),
+                        "provided" => {
+                            format!("    compileOnly(\"{}:{}\")", dep.group_id, dep.artifact_id)
+                        }
+                        _ => format!(
+                            "    implementation(\"{}:{}\")",
+                            dep.group_id, dep.artifact_id
+                        ),
                     }
                 } else {
-                    format!("    implementation(\"{}:{}\")", dep.group_id, dep.artifact_id)
+                    format!(
+                        "    implementation(\"{}:{}\")",
+                        dep.group_id, dep.artifact_id
+                    )
                 };
-                
+
                 if !deps.contains(&gradle_dep) {
                     deps.push(gradle_dep);
                 }
@@ -309,7 +334,10 @@ if "%OS%"=="Windows_NT" endlocal
         // Add feature-specific test dependencies
         let has_kafka = self.features.iter().any(|f| f.key == "kafka");
         if has_kafka {
-            deps.push("    testImplementation(\"org.springframework.kafka:spring-kafka-test\")".to_string());
+            deps.push(
+                "    testImplementation(\"org.springframework.kafka:spring-kafka-test\")"
+                    .to_string(),
+            );
         }
 
         let has_postgres = self.features.iter().any(|f| f.key == "postgres");
@@ -389,11 +417,19 @@ tasks.bootJar {{
         let mut deps = Vec::new();
 
         // Core dependencies
-        deps.push("    implementation 'org.springframework.boot:spring-boot-starter-web'".to_string());
-        deps.push("    implementation 'org.springframework.boot:spring-boot-starter-validation'".to_string());
+        deps.push(
+            "    implementation 'org.springframework.boot:spring-boot-starter-web'".to_string(),
+        );
+        deps.push(
+            "    implementation 'org.springframework.boot:spring-boot-starter-validation'"
+                .to_string(),
+        );
         deps.push("    compileOnly 'org.projectlombok:lombok'".to_string());
         deps.push("    annotationProcessor 'org.projectlombok:lombok'".to_string());
-        deps.push("    testImplementation 'org.springframework.boot:spring-boot-starter-test'".to_string());
+        deps.push(
+            "    testImplementation 'org.springframework.boot:spring-boot-starter-test'"
+                .to_string(),
+        );
         deps.push("    testImplementation 'org.testcontainers:junit-jupiter'".to_string());
 
         // Feature dependencies
@@ -401,14 +437,19 @@ tasks.bootJar {{
             for dep in feature.maven_deps {
                 let gradle_dep = if let Some(scope) = dep.scope {
                     match scope {
-                        "test" => format!("    testImplementation '{}:{}'", dep.group_id, dep.artifact_id),
-                        "provided" => format!("    compileOnly '{}:{}'", dep.group_id, dep.artifact_id),
+                        "test" => format!(
+                            "    testImplementation '{}:{}'",
+                            dep.group_id, dep.artifact_id
+                        ),
+                        "provided" => {
+                            format!("    compileOnly '{}:{}'", dep.group_id, dep.artifact_id)
+                        }
                         _ => format!("    implementation '{}:{}'", dep.group_id, dep.artifact_id),
                     }
                 } else {
                     format!("    implementation '{}:{}'", dep.group_id, dep.artifact_id)
                 };
-                
+
                 if !deps.contains(&gradle_dep) {
                     deps.push(gradle_dep);
                 }
@@ -418,7 +459,9 @@ tasks.bootJar {{
         // Add feature-specific test dependencies
         let has_kafka = self.features.iter().any(|f| f.key == "kafka");
         if has_kafka {
-            deps.push("    testImplementation 'org.springframework.kafka:spring-kafka-test'".to_string());
+            deps.push(
+                "    testImplementation 'org.springframework.kafka:spring-kafka-test'".to_string(),
+            );
         }
 
         let has_postgres = self.features.iter().any(|f| f.key == "postgres");

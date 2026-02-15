@@ -275,7 +275,92 @@ pub fn all_features() -> Vec<FeatureSpec> {
                 ("KAFKA_LISTENER_CONCURRENCY", "3"),
             ],
             java_files: &["KafkaConfig", "KafkaProducerService", "KafkaConsumerService", "KafkaTopicConfig"],
-            conflicts: &[],
+            conflicts: &["rabbitmq", "ibmmq"],
+        },
+
+        // ─────────────────────────────────────────────────────────
+        // RabbitMQ
+        // ─────────────────────────────────────────────────────────
+        FeatureSpec {
+            key: "rabbitmq",
+            name: "RabbitMQ",
+            description: "RabbitMQ messaging with Spring AMQP",
+            maven_deps: &[
+                MavenDep { group_id: "org.springframework.boot", artifact_id: "spring-boot-starter-amqp", version: None, scope: None },
+            ],
+            requires: &[],
+            properties: &[
+                ("spring.rabbitmq.host", "${RABBITMQ_HOST:localhost}"),
+                ("spring.rabbitmq.port", "${RABBITMQ_PORT:5672}"),
+                ("spring.rabbitmq.username", "${RABBITMQ_USER:guest}"),
+                ("spring.rabbitmq.password", "${RABBITMQ_PASSWORD:guest}"),
+            ],
+            docker_services: &[
+                DockerService {
+                    name: "rabbitmq",
+                    image: "rabbitmq:3-management",
+                    ports: &["5672:5672", "15672:15672"],
+                    environment: &[
+                        ("RABBITMQ_DEFAULT_USER", "${RABBITMQ_USER:-guest}"),
+                        ("RABBITMQ_DEFAULT_PASS", "${RABBITMQ_PASSWORD:-guest}"),
+                    ],
+                    volumes: &["rabbitmq_data:/var/lib/rabbitmq"],
+                    healthcheck: Some("rabbitmq-diagnostics -q ping"),
+                    depends_on: &[],
+                },
+            ],
+            env_vars: &[
+                ("RABBITMQ_HOST", "localhost"),
+                ("RABBITMQ_PORT", "5672"),
+                ("RABBITMQ_USER", "guest"),
+                ("RABBITMQ_PASSWORD", "guest"),
+            ],
+            java_files: &["RabbitMqConfig"],
+            conflicts: &["kafka", "ibmmq"],
+        },
+
+        // ─────────────────────────────────────────────────────────
+        // IBM MQ
+        // ─────────────────────────────────────────────────────────
+        FeatureSpec {
+            key: "ibmmq",
+            name: "IBM MQ",
+            description: "IBM MQ (JMS) integration",
+            maven_deps: &[
+                MavenDep { group_id: "com.ibm.mq", artifact_id: "mq-jms-spring-boot-starter", version: Some("3.3.4"), scope: None },
+            ],
+            requires: &[],
+            properties: &[
+                ("ibm.mq.queueManager", "${IBM_MQ_QM:QM1}"),
+                ("ibm.mq.channel", "${IBM_MQ_CHANNEL:DEV.APP.SVRCONN}"),
+                ("ibm.mq.connName", "${IBM_MQ_HOST:localhost}(${IBM_MQ_PORT:1414})"),
+                ("ibm.mq.user", "${IBM_MQ_USER:app}"),
+                ("ibm.mq.password", "${IBM_MQ_PASSWORD:}"),
+            ],
+            docker_services: &[
+                DockerService {
+                    name: "ibmmq",
+                    image: "ibmcom/mq:latest",
+                    ports: &["1414:1414", "9443:9443"],
+                    environment: &[
+                        ("LICENSE", "accept"),
+                        ("MQ_QMGR_NAME", "${IBM_MQ_QM:-QM1}"),
+                    ],
+                    volumes: &["ibmmq_data:/mnt/mqm"],
+                    healthcheck: None,
+                    depends_on: &[],
+                },
+            ],
+            env_vars: &[
+                ("IBM_MQ_QM", "QM1"),
+                ("IBM_MQ_CHANNEL", "DEV.APP.SVRCONN"),
+                ("IBM_MQ_HOST", "localhost"),
+                ("IBM_MQ_PORT", "1414"),
+                ("IBM_MQ_USER", "app"),
+                ("IBM_MQ_PASSWORD", ""),
+            ],
+            java_files: &["IbmMqConfig"],
+            conflicts: &["kafka", "rabbitmq"],
         },
 
         // ─────────────────────────────────────────────────────────
