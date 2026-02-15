@@ -420,15 +420,13 @@ impl ProjectConfig {
 
     /// Build a default config from new args
     pub fn from_new_args(args: &crate::cli::NewArgs) -> Self {
-        use crate::cli::{BuildTool, GradleDsl, RedisMode};
+        use crate::cli::{BuildTool, GradleDsl};
 
-        let redis_mode = match &args.redis_mode {
-            RedisMode::Standalone => "standalone",
-            RedisMode::Ssl => "ssl",
-            RedisMode::Sentinel => "sentinel",
-            RedisMode::Cluster => "cluster",
-        }
-        .to_string();
+        let redis_mode = if !args.redis_stack.is_empty() {
+            args.redis_stack.join(",")
+        } else {
+            "standalone".to_string()
+        };
 
         let build_tool = match &args.build_tool {
             BuildTool::Maven => "maven",

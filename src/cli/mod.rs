@@ -68,15 +68,29 @@ pub struct NewArgs {
     pub java_version: u8,
 
     /// Features to include (comma-separated or repeated flags)
-    /// Available: redis, redis-ssl, redis-sentinel, kafka, security, jwt,
-    ///            postgres, mysql, mongodb, elasticsearch, openapi, actuator,
-    ///            docker, kubernetes, tracing, s3, email, websocket
+    /// Available: redis, kafka, postgres, mysql, mongodb, elasticsearch,
+    ///            security, jwt, oauth2, openapi, actuator, docker, kubernetes,
+    ///            tracing, s3, email, websocket, rabbitmq, ibmmq
     #[arg(short, long, value_delimiter = ',', value_name = "FEATURE")]
     pub features: Vec<String>,
 
-    /// Redis connection mode when redis feature is enabled
-    #[arg(long, value_enum, default_value = "standalone")]
-    pub redis_mode: RedisMode,
+    /// Redis stack options (comma-separated): ssl, sentinel, cluster
+    /// Example: --redis-stack ssl or --redis-stack ssl,sentinel
+    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
+    pub redis_stack: Vec<String>,
+
+    /// Kafka stack options (comma-separated): sasl, ssl
+    /// Example: --kafka-stack sasl
+    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
+    pub kafka_stack: Vec<String>,
+
+    /// PostgreSQL stack options (comma-separated): ssl, replication
+    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
+    pub postgres_stack: Vec<String>,
+
+    /// MySQL stack options (comma-separated): ssl
+    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
+    pub mysql_stack: Vec<String>,
 
     /// Build tool (maven or gradle)
     #[arg(long, value_enum, default_value = "maven")]
@@ -149,14 +163,6 @@ pub struct ValidateArgs {
     /// Path to springgen.toml
     #[arg(value_name = "CONFIG", default_value = "springgen.toml")]
     pub config: std::path::PathBuf,
-}
-
-#[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
-pub enum RedisMode {
-    Standalone,
-    Ssl,
-    Sentinel,
-    Cluster,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug, PartialEq)]
@@ -299,13 +305,13 @@ fn interactive_init() -> Result<(NewArgs, ProjectConfig)> {
     let mut config = ProjectConfig::from_new_args(&args);
 
     // 2. Database
-    prompt_database(&theme, &mut config, &mut args.features)?;
+    prompt_database(&theme, &mut config, &mut args)?;
 
     // 3. Cache
-    prompt_cache(&theme, &mut config, &mut args.features)?;
+    prompt_cache(&theme, &mut config, &mut args)?;
 
     // 4. Messaging
-    prompt_messaging(&theme, &mut config, &mut args.features)?;
+    prompt_messaging(&theme, &mut config, &mut args)?;
 
     // 5. Security
     prompt_security(&theme, &mut config, &mut args.features)?;
@@ -391,7 +397,10 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         boot_version: boot_versions[boot_idx].to_string(),
         java_version: java_versions[java_idx].parse()?,
         features: vec![],                  // Will be populated by other prompts
-        redis_mode: RedisMode::Standalone, // Default, will be updated
+        redis_stack: vec![],               // Will be populated by cache prompt
+        kafka_stack: vec![],               // Will be populated by messaging prompt
+        postgres_stack: vec![],            // Will be populated by database prompt
+        mysql_stack: vec![],               // Will be populated by database prompt
         build_tool,
         gradle_dsl,
         skip_format: false,
@@ -404,9 +413,9 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
 fn prompt_database(
     theme: &dialoguer::theme::ColorfulTheme,
     config: &mut ProjectConfig,
-    features: &mut Vec<String>,
+    args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::{Confirm, Select};
+    use dialoguer::{Confirm, MultiSelect, Select};
 
     let db_options = vec!["None", "PostgreSQL", "MySQL", "MongoDB"];
     let db_idx = Select::with_theme(theme)
@@ -425,7 +434,7 @@ fn prompt_database(
         3 => "mongodb",
         _ => return Ok(()),
     };
-    features.push(db_feature.to_string());
+    args.features.push(db_feature.to_string());
 
     // Common DB options
     if db_feature == "postgres" || db_feature == "mysql" {
@@ -434,6 +443,38 @@ fn prompt_database(
             .default(true)
             .interact()?;
         config.database.flyway_enabled = flyway;
+        
+        // Stack options for PostgreSQL/MySQL
+        if db_feature == "postgres" {
+            let stack_options = vec![
+                ("ssl", "Enable SSL/TLS connections"),
+                ("replication", "Master-Slave replication"),
+            ];
+            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+
+            let selections = MultiSelect::with_theme(theme)
+                .with_prompt("PostgreSQL Stack Options (optional)")
+                .items(&labels)
+                .interact()?;
+
+            for idx in selections {
+                args.postgres_stack.push(stack_options[idx].0.to_string());
+            }
+        } else if db_feature == "mysql" {
+            let stack_options = vec![
+                ("ssl", "Enable SSL/TLS connections"),
+            ];
+            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+
+            let selections = MultiSelect::with_theme(theme)
+                .with_prompt("MySQL Stack Options (optional)")
+                .items(&labels)
+                .interact()?;
+
+            for idx in selections {
+                args.mysql_stack.push(stack_options[idx].0.to_string());
+            }
+        }
     }
 
     // We assume docker service is generated if feature is enabled,
@@ -460,9 +501,9 @@ fn prompt_database(
 fn prompt_cache(
     theme: &dialoguer::theme::ColorfulTheme,
     config: &mut ProjectConfig,
-    features: &mut Vec<String>,
+    args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::{Confirm, Select};
+    use dialoguer::{Confirm, MultiSelect};
 
     if !Confirm::with_theme(theme)
         .with_prompt("Add Redis Cache?")
@@ -472,28 +513,31 @@ fn prompt_cache(
         return Ok(());
     }
 
-    let modes = vec!["Standalone", "SSL/TLS", "Sentinel"];
-    let mode_idx = Select::with_theme(theme)
-        .with_prompt("Redis Mode")
-        .items(&modes)
-        .default(0)
+    args.features.push("redis".to_string());
+
+    // Stack options for Redis
+    let stack_options = vec![
+        ("ssl", "Enable SSL/TLS encryption"),
+        ("sentinel", "High Availability with Sentinel"),
+        ("cluster", "Redis Cluster mode"),
+    ];
+    let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+
+    let selections = MultiSelect::with_theme(theme)
+        .with_prompt("Redis Stack Options (optional)")
+        .items(&labels)
         .interact()?;
 
-    let feature = match mode_idx {
-        0 => "redis",
-        1 => "redis-ssl",
-        2 => "redis-sentinel",
-        _ => "redis",
-    };
-    features.push(feature.to_string());
-
-    config.redis.mode = match mode_idx {
-        0 => "standalone",
-        1 => "ssl",
-        2 => "sentinel",
-        _ => "standalone",
+    for idx in selections {
+        args.redis_stack.push(stack_options[idx].0.to_string());
     }
-    .to_string();
+
+    // Update config based on selections
+    if !args.redis_stack.is_empty() {
+        config.redis.mode = args.redis_stack.join(",");
+    } else {
+        config.redis.mode = "standalone".to_string();
+    }
 
     Ok(())
 }
@@ -501,9 +545,9 @@ fn prompt_cache(
 fn prompt_messaging(
     theme: &dialoguer::theme::ColorfulTheme,
     _config: &mut ProjectConfig,
-    features: &mut Vec<String>,
+    args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::Select;
+    use dialoguer::{MultiSelect, Select};
 
     let options = vec!["None", "Kafka", "RabbitMQ", "IBM MQ"];
     let idx = Select::with_theme(theme)
@@ -513,9 +557,27 @@ fn prompt_messaging(
         .interact()?;
 
     match idx {
-        1 => features.push("kafka".to_string()),
-        2 => features.push("rabbitmq".to_string()),
-        3 => features.push("ibmmq".to_string()),
+        1 => {
+            args.features.push("kafka".to_string());
+            
+            // Kafka stack options
+            let stack_options = vec![
+                ("sasl", "SASL Authentication"),
+                ("ssl", "SSL/TLS Encryption"),
+            ];
+            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+
+            let selections = MultiSelect::with_theme(theme)
+                .with_prompt("Kafka Stack Options (optional)")
+                .items(&labels)
+                .interact()?;
+
+            for idx in selections {
+                args.kafka_stack.push(stack_options[idx].0.to_string());
+            }
+        }
+        2 => args.features.push("rabbitmq".to_string()),
+        3 => args.features.push("ibmmq".to_string()),
         _ => {}
     }
 
