@@ -1,0 +1,97 @@
+package {{package}}.config;
+
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SslOptions;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.time.Duration;
+
+/**
+ * Redis configuration — SSL/TLS mode.
+ *
+ * <p>Requires a PKCS12 keystore and truststore on the classpath under {@code ssl/}.
+ * To generate self-signed certs for development, run:
+ * <pre>
+ *   keytool -genkeypair -alias redis-client -keyalg RSA -keysize 2048 \
+ *     -storetype PKCS12 -keystore src/main/resources/ssl/redis-client.p12 \
+ *     -validity 365 -storepass changeit
+ * </pre>
+ */
+@Configuration
+public class RedisSslConfig {
+
+    @Value("${spring.data.redis.host}")
+    private String host;
+
+    @Value("${spring.data.redis.port}")
+    private int port;
+
+    @Value("${spring.data.redis.password:}")
+    private String password;
+
+    @Value("${spring.ssl.bundle.jks.redis-ssl.keystore.location}")
+    private Resource keystoreLocation;
+
+    @Value("${spring.ssl.bundle.jks.redis-ssl.keystore.password}")
+    private String keystorePassword;
+
+    @Value("${spring.ssl.bundle.jks.redis-ssl.truststore.location}")
+    private Resource truststoreLocation;
+
+    @Value("${spring.ssl.bundle.jks.redis-ssl.truststore.password}")
+    private String truststorePassword;
+
+    @Bean
+    public RedisConnectionFactory redisConnectionFactory() throws Exception {
+        var sslOptions = SslOptions.builder()
+            .keystore(keystoreLocation.getFile(), keystorePassword.toCharArray())
+            .truststore(truststoreLocation.getFile(), truststorePassword.toCharArray())
+            .build();
+
+        var clientOptions = ClientOptions.builder()
+            .sslOptions(sslOptions)
+            .build();
+
+        var poolConfig = new GenericObjectPoolConfig<Object>();
+        poolConfig.setMaxTotal(8);
+        poolConfig.setMaxIdle(8);
+        poolConfig.setMinIdle(0);
+
+        var lettuceConfig = LettucePoolingClientConfiguration.builder()
+            .useSsl()
+            .clientOptions(clientOptions)
+            .commandTimeout(Duration.ofMillis(2000))
+            .poolConfig(poolConfig)
+            .build();
+
+        var standaloneConfig = new RedisStandaloneConfiguration(host, port);
+        if (password != null && !password.isBlank()) {
+            standaloneConfig.setPassword(password);
+        }
+
+        return new LettuceConnectionFactory(standaloneConfig, lettuceConfig);
+    }
+
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+        var template = new RedisTemplate<String, Object>();
+        template.setConnectionFactory(factory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
+        template.setHashKeySerializer(new StringRedisSerializer());
+        template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
+        template.afterPropertiesSet();
+        return template;
+    }
+}

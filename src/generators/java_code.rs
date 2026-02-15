@@ -17,28 +17,59 @@ impl<'a> JavaCodeGenerator<'a> {
     pub fn new(config: &'a ProjectConfig, features: &'a [FeatureSpec]) -> Result<Self> {
         let mut handlebars = Handlebars::new();
 
-        // Register templates from the templates/java directory
-        // For now, we'll register inline templates for the ones we created
-        // In production, you'd load from files
+        // Register templates from organized directory structure
+        // Core templates
         handlebars.register_template_string(
-            "Application",
-            include_str!("../../templates/java/Application.java.hbs"),
+            "core/Application",
+            include_str!("../../templates/java/core/Application.java.hbs"),
         )?;
         handlebars.register_template_string(
-            "RedisConfig",
-            include_str!("../../templates/java/RedisConfig.java.hbs"),
+            "core/ApiResponse",
+            include_str!("../../templates/java/core/ApiResponse.java.hbs"),
         )?;
         handlebars.register_template_string(
-            "ApiResponse",
-            include_str!("../../templates/java/ApiResponse.java.hbs"),
+            "core/GlobalExceptionHandler",
+            include_str!("../../templates/java/core/GlobalExceptionHandler.java.hbs"),
         )?;
         handlebars.register_template_string(
-            "GlobalExceptionHandler",
-            include_str!("../../templates/java/GlobalExceptionHandler.java.hbs"),
+            "core/HealthController",
+            include_str!("../../templates/java/core/HealthController.java.hbs"),
+        )?;
+
+        // Redis templates
+        handlebars.register_template_string(
+            "redis/RedisConfig",
+            include_str!("../../templates/java/redis/RedisConfig.java.hbs"),
         )?;
         handlebars.register_template_string(
-            "HealthController",
-            include_str!("../../templates/java/HealthController.java.hbs"),
+            "redis/RedisSslConfig",
+            include_str!("../../templates/java/redis/RedisSslConfig.java.hbs"),
+        )?;
+        handlebars.register_template_string(
+            "redis/RedisSentinelConfig",
+            include_str!("../../templates/java/redis/RedisSentinelConfig.java.hbs"),
+        )?;
+        handlebars.register_template_string(
+            "redis/CacheConfig",
+            include_str!("../../templates/java/redis/CacheConfig.java.hbs"),
+        )?;
+
+        // Kafka templates
+        handlebars.register_template_string(
+            "kafka/KafkaConfig",
+            include_str!("../../templates/java/kafka/KafkaConfig.java.hbs"),
+        )?;
+        handlebars.register_template_string(
+            "kafka/KafkaTopicConfig",
+            include_str!("../../templates/java/kafka/KafkaTopicConfig.java.hbs"),
+        )?;
+        handlebars.register_template_string(
+            "kafka/KafkaProducerService",
+            include_str!("../../templates/java/kafka/KafkaProducerService.java.hbs"),
+        )?;
+        handlebars.register_template_string(
+            "kafka/KafkaConsumerService",
+            include_str!("../../templates/java/kafka/KafkaConsumerService.java.hbs"),
         )?;
 
         Ok(Self {
@@ -285,28 +316,28 @@ impl<'a> JavaCodeGenerator<'a> {
             "package": pkg,
             "className": class_name
         });
-        Ok(self.handlebars.render("Application", &data)?)
+        Ok(self.handlebars.render("core/Application", &data)?)
     }
 
     fn render_api_response(&self, pkg: &str) -> Result<String> {
         let data = json!({
             "package": pkg
         });
-        Ok(self.handlebars.render("ApiResponse", &data)?)
+        Ok(self.handlebars.render("core/ApiResponse", &data)?)
     }
 
     fn render_exception_handler(&self, pkg: &str) -> Result<String> {
         let data = json!({
             "package": pkg
         });
-        Ok(self.handlebars.render("GlobalExceptionHandler", &data)?)
+        Ok(self.handlebars.render("core/GlobalExceptionHandler", &data)?)
     }
 
     fn render_health_controller(&self, pkg: &str) -> Result<String> {
         let data = json!({
             "package": pkg
         });
-        Ok(self.handlebars.render("HealthController", &data)?)
+        Ok(self.handlebars.render("core/HealthController", &data)?)
     }
 
     fn render_redis_config(&self, pkg: &str, _ssl: bool, _sentinel: bool) -> String {

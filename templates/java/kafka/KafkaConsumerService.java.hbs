@@ -1,0 +1,30 @@
+package {{package}}.service;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.RetryableTopic;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.stereotype.Service;
+
+/**
+* Example Kafka consumer.
+* Replace or extend with your actual domain event consumers.
+*
+* <p>@RetryableTopic configures retry topics automatically:
+    * example-events → example-events-retry-0 → example-events-retry-1 → example-events.DLT
+    */
+    @Slf4j
+    @Service
+    public class KafkaConsumerService {
+
+    @RetryableTopic(
+    attempts = "4",
+    backoff = @Backoff(delay = 1000, multiplier = 2, maxDelay = 8000),
+    dltTopicSuffix = ".DLT"
+    )
+    @KafkaListener(topics = "example-events", groupId = "${spring.kafka.consumer.group-id}")
+    public void consumeExampleEvent(String message) {
+    log.info("Consumed example event: {}", message);
+    // TODO: implement your business logic here
+    }
+    }

@@ -1,0 +1,49 @@
+package {{package}}.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
+import org.springframework.stereotype.Service;
+
+import java.util.concurrent.CompletableFuture;
+
+/**
+* Generic Kafka producer service.
+* Inject this into your domain services to publish events.
+*/
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class KafkaProducerService {
+
+private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    /**
+    * Send a message to the given topic with a key for partitioning.
+    */
+    public <T> CompletableFuture<SendResult<String, T>> send(String topic, String key, T payload) {
+            log.debug("Publishing to topic={} key={} payload={}", topic, key, payload);
+
+            @SuppressWarnings("unchecked")
+            CompletableFuture<SendResult<String, T>> future =
+                (CompletableFuture<SendResult<String, T>>) (Object)
+                    kafkaTemplate.send(topic, key, payload);
+
+                    return future.whenComplete((result, ex) -> {
+                    if (ex != null) {
+                    log.error("Failed to publish to topic={} key={}: {}", topic, key, ex.getMessage(), ex);
+                    } else {
+                    log.info("Published to topic={} partition={} offset={}",
+                    result.getRecordMetadata().topic(),
+                    result.getRecordMetadata().partition(),
+                    result.getRecordMetadata().offset());
+                    }
+                    });
+                    }
+
+                    /** Send without an explicit key (Kafka will assign round-robin partition). */
+                    public <T> CompletableFuture<SendResult<String, T>> send(String topic, T payload) {
+                            return send(topic, null, payload);
+                            }
+                            }

@@ -1,0 +1,37 @@
+package {{package}}.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
+import org.springframework.context.annotation.Bean;
+
+/**
+* Kafka listener container configuration.
+* Topics are defined in KafkaTopicConfig.
+*/
+@Configuration
+@EnableKafka
+public class KafkaConfig {
+
+@Bean
+public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
+    ConsumerFactory<String, Object> consumerFactory) {
+
+        var factory = new ConcurrentKafkaListenerContainerFactory<String, Object>();
+            factory.setConsumerFactory(consumerFactory);
+
+            // Exponential backoff: 1s → 2s → 4s → 8s (max 3 retries before DLQ)
+            var backOff = new ExponentialBackOffWithMaxRetries(3);
+            backOff.setInitialInterval(1_000L);
+            backOff.setMultiplier(2.0);
+            backOff.setMaxInterval(8_000L);
+
+            var errorHandler = new DefaultErrorHandler(backOff);
+            factory.setCommonErrorHandler(errorHandler);
+
+            return factory;
+            }
+            }

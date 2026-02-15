@@ -1,0 +1,99 @@
+package {{package}}.config;
+
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisSentinelConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.time.Duration;
+import java.util.Arrays;
+
+/**
+* Redis configuration — Sentinel HA mode.
+*
+* <p>Sentinel provides automatic failover. At least 3 sentinels should be
+    * running in production. The master name must match your Redis Sentinel config.
+    *
+    *
+<p>Environment variables:
+    *
+<ul>
+    * <li>REDIS_SENTINEL_MASTER — sentinel master name (default: mymaster)</li>
+    * <li>REDIS_SENTINEL_NODES — comma-separated host:port list</li>
+    * <li>REDIS_SENTINEL_PASSWORD — sentinel auth password (if configured)</li>
+    * <li>REDIS_PASSWORD — Redis data node password</li>
+    * </ul>
+*/
+@Configuration
+public class RedisSentinelConfig {
+
+@Value("${spring.data.redis.sentinel.master}")
+private String sentinelMaster;
+
+@Value("${spring.data.redis.sentinel.nodes}")
+private String sentinelNodes;
+
+@Value("${spring.data.redis.sentinel.password:}")
+private String sentinelPassword;
+
+@Value("${spring.data.redis.password:}")
+private String redisPassword;
+
+@Value("${spring.data.redis.database:0}")
+private int database;
+
+@Bean
+public RedisConnectionFactory redisConnectionFactory() {
+var sentinelConfig = new RedisSentinelConfiguration();
+sentinelConfig.setMaster(sentinelMaster);
+
+// Parse "host:port,host:port" sentinel nodes
+Arrays.stream(sentinelNodes.split(","))
+.map(String::trim)
+.filter(node -> !node.isBlank())
+.forEach(node -> {
+String[] parts = node.split(":");
+sentinelConfig.sentinel(parts[0], Integer.parseInt(parts[1]));
+});
+
+if (sentinelPassword != null && !sentinelPassword.isBlank()) {
+sentinelConfig.setSentinelPassword(sentinelPassword);
+}
+if (redisPassword != null && !redisPassword.isBlank()) {
+sentinelConfig.setPassword(redisPassword);
+}
+sentinelConfig.setDatabase(database);
+
+var poolConfig = new GenericObjectPoolConfig<Object>();
+    poolConfig.setMaxTotal(16);
+    poolConfig.setMaxIdle(8);
+    poolConfig.setMinIdle(2);
+    poolConfig.setBlockWhenExhausted(true);
+
+    var lettuceConfig = LettucePoolingClientConfiguration.builder()
+    .commandTimeout(Duration.ofMillis(2000))
+    .poolConfig(poolConfig)
+    .build();
+
+    return new LettuceConnectionFactory(sentinelConfig, lettuceConfig);
+    }
+
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+        var template = new RedisTemplate<String, Object>();
+            template.setConnectionFactory(factory);
+            template.setKeySerializer(new StringRedisSerializer());
+            template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
+                template.setHashKeySerializer(new StringRedisSerializer());
+                template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
+                    template.afterPropertiesSet();
+                    return template;
+                    }
+                    }
