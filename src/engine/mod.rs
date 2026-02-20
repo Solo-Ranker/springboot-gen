@@ -116,10 +116,10 @@ impl GenerationEngine {
         }
         pb.inc(1);
 
-        // ── 14. Emit springgen.toml ──────────────────────────────────────────
+        // ── 14. Emit springboot-gen.toml ──────────────────────────────────────────
         if args.emit_config {
-            pb.set_message("Writing springgen.toml");
-            config.save(&out_dir.join("springgen.toml"))?;
+            pb.set_message("Writing springboot-gen.toml");
+            config.save(&out_dir.join("springboot-gen.toml"))?;
         }
         pb.inc(1);
 
@@ -138,12 +138,12 @@ impl GenerationEngine {
         Ok(())
     }
 
-    /// Add features to an existing SpringGen project
+    /// Add features to an existing SpringbootGen project
     pub fn add_features(&self, args: AddArgs) -> Result<()> {
-        let config_path = args.path.join("springgen.toml");
+        let config_path = args.path.join("springboot-gen.toml");
         if !config_path.exists() {
             anyhow::bail!(
-                "No springgen.toml found in '{}'. Use `springgen analyze` on non-SpringGen projects.",
+                "No springboot-gen.toml found in '{}'. Use `springboot-gen analyze` on non-SpringbootGen projects.",
                 args.path.display()
             );
         }
@@ -215,7 +215,7 @@ impl GenerationEngine {
 
         pb.finish_with_message("Done!");
 
-        // Update springgen.toml
+        // Update springboot-gen.toml
         config.features = all_features;
         config.save(&config_path)?;
 
@@ -323,8 +323,8 @@ src/main/resources/ssl/*.p12
 src/main/resources/ssl/*.jks
 !src/main/resources/ssl/*.example
 
-# SpringGen
-springgen.lock
+# SpringbootGen
+springboot-gen.lock
 "#;
         std::fs::write(out.join(".gitignore"), content)?;
         Ok(())

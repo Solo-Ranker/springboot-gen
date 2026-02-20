@@ -6,12 +6,12 @@ use crate::analyzer::ProjectAnalyzer;
 use crate::config::ProjectConfig;
 use crate::engine::GenerationEngine;
 
-/// SpringGen — Production-grade Spring Boot project generator
+/// SpringbootGen — Production-grade Spring Boot project generator
 #[derive(Parser)]
 #[command(
-    name = "springgen",
+    name = "springboot-gen",
     about = "Generate production-ready Spring Boot backends with full infrastructure",
-    long_about = "SpringGen generates opinionated Spring Boot applications with Redis, Kafka, \
+    long_about = "SpringbootGen generates opinionated Spring Boot applications with Redis, Kafka, \
                   security, Docker, and more — fully configured. You write only business logic.",
     version,
     propagate_version = true
@@ -29,7 +29,7 @@ enum Commands {
     /// Interactively scaffold a project with guided prompts
     Init,
 
-    /// Add features to an existing SpringGen project
+    /// Add features to an existing SpringbootGen project
     Add(AddArgs),
 
     /// Analyze an existing Spring Boot project and generate compatible config
@@ -41,7 +41,7 @@ enum Commands {
     /// List all available features and their descriptions
     Features,
 
-    /// Validate a springgen.toml configuration file
+    /// Validate a springboot-gen.toml configuration file
     Validate(ValidateArgs),
 
     /// Show the diff of what would be generated without writing files
@@ -112,7 +112,7 @@ pub struct NewArgs {
     #[arg(long)]
     pub force: bool,
 
-    /// Emit a springgen.toml config alongside the generated project
+    /// Emit a springboot-gen.toml config alongside the generated project
     #[arg(long, default_value = "true")]
     pub emit_config: bool,
 }
@@ -123,7 +123,7 @@ pub struct AddArgs {
     #[arg(value_delimiter = ',', value_name = "FEATURE")]
     pub features: Vec<String>,
 
-    /// Path to existing SpringGen project (defaults to current directory)
+    /// Path to existing SpringbootGen project (defaults to current directory)
     #[arg(long, default_value = ".")]
     pub path: std::path::PathBuf,
 }
@@ -138,7 +138,7 @@ pub struct AnalyzeArgs {
     #[arg(long, value_enum, default_value = "table")]
     pub format: AnalyzeFormat,
 
-    /// Save a springgen.toml based on the analysis
+    /// Save a springboot-gen.toml based on the analysis
     #[arg(long)]
     pub save: bool,
 }
@@ -154,14 +154,14 @@ pub struct ImportArgs {
     pub features: Vec<String>,
 
     /// Output directory for generated supplemental files
-    #[arg(long, default_value = "./springgen-out")]
+    #[arg(long, default_value = "./springboot-gen-out")]
     pub output: std::path::PathBuf,
 }
 
 #[derive(clap::Args)]
 pub struct ValidateArgs {
-    /// Path to springgen.toml
-    #[arg(value_name = "CONFIG", default_value = "springgen.toml")]
+    /// Path to springboot-gen.toml
+    #[arg(value_name = "CONFIG", default_value = "springboot-gen.toml")]
     pub config: std::path::PathBuf,
 }
 
@@ -222,7 +222,7 @@ impl Cli {
             Commands::Validate(args) => {
                 let config = ProjectConfig::load(&args.config)?;
                 config.validate()?;
-                println!("{} springgen.toml is valid", style("✓").green().bold());
+                println!("{} springboot-gen.toml is valid", style("✓").green().bold());
                 Ok(())
             }
         }
@@ -234,11 +234,11 @@ fn print_banner() {
         "{}",
         style(
             r#"
-  ____             _             ____
- / ___| _ __  _ __(_)_ __   __ _/ ___| ___ _ __
- \___ \| '_ \| '__| | '_ \ / _` | |  _ / _ \ '_ \
-  ___) | |_) | |  | | | | | (_| | |_| |  __/ | | |
- |____/| .__/|_|  |_|_| |_|\__, |\____|\___|_| |_|
+  ____             _             _                 _    ____            
+ / ___| _ __  _ __(_)_ __   __ _| |__   ___   ___ | |_ / ___| ___ _ __  
+ \___ \| '_ \| '__| | '_ \ / _` | '_ \ / _ \ / _ \| __| |  _ / _ \ '_ \ 
+  ___) | |_) | |  | | | | | (_| | |_) | (_) | (_) | |_| |_| |  __/ | | |
+ |____/| .__/|_|  |_|_| |_|\__, |_.__/ \___/ \___/ \__|\____|\___|_| |_|
        |_|                  |___/
 "#
         )
@@ -246,7 +246,7 @@ fn print_banner() {
         .bold()
     );
     println!(
-        "  {} Production-grade Spring Boot generator\n",
+        "  {} Boilerplate Spring Boot generator\n",
         style("→").bold()
     );
 }
@@ -326,7 +326,7 @@ fn interactive_init() -> Result<(NewArgs, ProjectConfig)> {
     prompt_infrastructure(&theme, &mut args.features)?;
 
     let _emit = Confirm::with_theme(&theme)
-        .with_prompt("Emit springgen.toml config file?")
+        .with_prompt("Emit springboot-gen.toml config file?")
         .default(true)
         .interact()?;
 

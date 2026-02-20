@@ -93,7 +93,7 @@ impl ProjectAnalyzer {
 
         if save {
             let config = self.report_to_config(&report);
-            let out = path.join("springgen.toml");
+            let out = path.join("springboot-gen.toml");
             config.save(&out)?;
             println!(
                 "\n{} Saved config to: {}",
@@ -105,7 +105,7 @@ impl ProjectAnalyzer {
         Ok(())
     }
 
-    /// Analyze an existing project and generate supplemental SpringGen files
+    /// Analyze an existing project and generate supplemental SpringbootGen files
     pub fn import_and_supplement(&self, args: ImportArgs) -> Result<()> {
         println!(
             "\n{} Importing project: {}\n",
@@ -172,8 +172,8 @@ impl ProjectAnalyzer {
             println!("  {} k8s/ manifests", style("✓").green());
         }
 
-        config.save(&args.output.join("springgen.toml"))?;
-        println!("  {} springgen.toml", style("✓").green());
+        config.save(&args.output.join("springboot-gen.toml"))?;
+        println!("  {} springboot-gen.toml", style("✓").green());
 
         self.print_import_guide(&report, &args.output);
 
@@ -272,7 +272,7 @@ impl ProjectAnalyzer {
             });
             if has_jedis && !has_lettuce {
                 warnings.push(
-                    "Jedis client detected. SpringGen uses Lettuce — migration may be needed."
+                    "Jedis client detected. SpringbootGen uses Lettuce — migration may be needed."
                         .to_string(),
                 );
             }
@@ -624,7 +624,7 @@ impl ProjectAnalyzer {
                 name: report.project_name.clone(),
                 group: report.group_id.clone(),
                 version: "0.0.1-SNAPSHOT".into(),
-                description: format!("{} — imported by SpringGen", report.project_name),
+                description: format!("{} — imported by SpringbootGen", report.project_name),
                 java_version: report.java_version,
                 boot_version: report.boot_version.clone(),
                 build_tool: "maven".into(), // Default to Maven for imported projects
@@ -713,7 +713,7 @@ impl ProjectAnalyzer {
         if out.join("docker-compose.yml").exists() {
             println!("  3. Review and copy docker-compose.yml to your project root");
         }
-        println!("  4. Run: springgen add <feature> --path <your-project>");
+        println!("  4. Run: springboot-gen add <feature> --path <your-project>");
 
         if !report.warnings.is_empty() {
             println!("\n{}", style("Review these warnings:").red().bold());

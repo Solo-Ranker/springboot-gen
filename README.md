@@ -1,22 +1,22 @@
-# SpringGen
+# SpringbootGen
 
-> Production-grade Spring Boot project generator — you write business logic, SpringGen writes the infrastructure.
+> Production-grade Spring Boot project generator — you write business logic, SpringbootGen writes the infrastructure.
 
 ```
-  ____             _             ____
- / ___| _ __  _ __(_)_ __   __ _/ ___| ___ _ __
- \___ \| '_ \| '__| | '_ \ / _` | |  _ / _ \ '_ \
-  ___) | |_) | |  | | | | | (_| | |_| |  __/ | | |
- |____/| .__/|_|  |_|_| |_|\__, |\____|\___|_| |_|
+  ____             _             _                 _    ____            
+ / ___| _ __  _ __(_)_ __   __ _| |__   ___   ___ | |_ / ___| ___ _ __  
+ \___ \| '_ \| '__| | '_ \ / _` | '_ \ / _ \ / _ \| __| |  _ / _ \ '_ \ 
+  ___) | |_) | |  | | | | | (_| | |_) | (_) | (_) | |_| |_| |  __/ | | |
+ |____/| .__/|_|  |_|_| |_|\__, |_.__/ \___/ \___/ \__|\____|\___|_| |_|
        |_|                  |___/
 ```
 
 ## What it does
 
-SpringGen generates a **complete, production-ready** Spring Boot project from a single command.
+SpringbootGen generates a **complete, production-ready** Spring Boot project from a single command.
 Everything is wired up — you immediately write business logic.
 
-| What SpringGen generates | What you write |
+| What SpringbootGen generates | What you write |
 |--------------------------|----------------|
 | `pom.xml` with all dependencies | Domain entities |
 | `application.yml` (dev/prod/test) | Repository interfaces |
@@ -35,10 +35,10 @@ Everything is wired up — you immediately write business logic.
 cargo build --release
 
 # Move to PATH
-sudo mv target/release/springgen /usr/local/bin/
+sudo mv target/release/springboot-gen /usr/local/bin/
 
 # Verify
-springgen --version
+springboot-gen --version
 ```
 
 ---
@@ -47,7 +47,7 @@ springgen --version
 
 ```bash
 # New project with PostgreSQL, Redis, Kafka, JWT auth, OpenAPI
-springgen new my-service \
+springboot-gen new my-service \
   --group com.acme \
   --features postgres,redis,kafka,jwt,openapi,actuator,docker
 
@@ -60,12 +60,12 @@ docker-compose up -d
 
 ## Commands
 
-### `springgen new <NAME>`
+### `springboot-gen new <NAME>`
 
 Create a brand-new project.
 
 ```bash
-springgen new payment-service \
+springboot-gen new payment-service \
   --group com.acme.payments \
   --boot-version 3.2.5 \
   --java-version 21 \
@@ -81,49 +81,49 @@ springgen new payment-service \
 | `--redis-mode` | `standalone` | `standalone` / `ssl` / `sentinel` / `cluster` |
 | `--output` | `./<name>` | Output directory |
 | `--force` | false | Overwrite existing directory |
-| `--emit-config` | true | Write `springgen.toml` |
+| `--emit-config` | true | Write `springboot-gen.toml` |
 
 ---
 
-### `springgen init`
+### `springboot-gen init`
 
 Interactive guided setup (TUI with feature checkboxes).
 
 ```bash
-springgen init
+springboot-gen init
 ```
 
 ---
 
-### `springgen add <FEATURES>`
+### `springboot-gen add <FEATURES>`
 
-Add features to an **existing** SpringGen project.
+Add features to an **existing** SpringbootGen project.
 
 ```bash
-springgen add elasticsearch,tracing --path ./my-service
+springboot-gen add elasticsearch,tracing --path ./my-service
 ```
 
 This updates `pom.xml`, `application.yml`, `docker-compose.yml`, generates new Java config
-classes, and updates `springgen.toml`.
+classes, and updates `springboot-gen.toml`.
 
 ---
 
-### `springgen analyze <PATH>`
+### `springboot-gen analyze <PATH>`
 
 **Analyze an existing Spring Boot project** — detect its features and configuration.
 
 ```bash
 # Print a table report
-springgen analyze ./legacy-service
+springboot-gen analyze ./legacy-service
 
-# Output as TOML (for use as springgen.toml)
-springgen analyze ./legacy-service --format toml
+# Output as TOML (for use as springboot-gen.toml)
+springboot-gen analyze ./legacy-service --format toml
 
 # Output as JSON
-springgen analyze ./legacy-service --format json
+springboot-gen analyze ./legacy-service --format json
 
-# Detect and save springgen.toml
-springgen analyze ./legacy-service --save
+# Detect and save springboot-gen.toml
+springboot-gen analyze ./legacy-service --save
 ```
 
 **What it detects:**
@@ -138,47 +138,47 @@ springgen analyze ./legacy-service --save
 
 ---
 
-### `springgen import <PATH>`
+### `springboot-gen import <PATH>`
 
 Like `analyze`, but also **generates supplemental files** — updated `application.yml`,
-`.env.example`, `docker-compose.yml`, and K8s manifests, output to `./springgen-out/`.
+`.env.example`, `docker-compose.yml`, and K8s manifests, output to `./springboot-gen-out/`.
 
 ```bash
 # Auto-detect everything
-springgen import ./legacy-service --output ./springgen-out
+springboot-gen import ./legacy-service --output ./springboot-gen-out
 
 # Auto-detect + add extra features not present
-springgen import ./legacy-service --features tracing,kubernetes --output ./infra
+springboot-gen import ./legacy-service --features tracing,kubernetes --output ./infra
 ```
 
 ---
 
-### `springgen features`
+### `springboot-gen features`
 
 List all available features.
 
 ```bash
-springgen features
+springboot-gen features
 ```
 
 ---
 
-### `springgen preview`
+### `springboot-gen preview`
 
 Show what would be generated **without writing any files** (dry-run).
 
 ```bash
-springgen preview my-service --features postgres,redis,kafka,jwt
+springboot-gen preview my-service --features postgres,redis,kafka,jwt
 ```
 
 ---
 
-### `springgen validate`
+### `springboot-gen validate`
 
-Validate a `springgen.toml` configuration file.
+Validate a `springboot-gen.toml` configuration file.
 
 ```bash
-springgen validate springgen.toml
+springboot-gen validate springboot-gen.toml
 ```
 
 ---
@@ -217,15 +217,15 @@ springgen validate springgen.toml
 
 #### Standalone (default)
 ```bash
-springgen new svc --features redis
+springboot-gen new svc --features redis
 ```
 Generates `RedisConfig.java` with Lettuce pool.
 
 #### SSL / TLS
 ```bash
-springgen new svc --features redis-ssl
+springboot-gen new svc --features redis-ssl
 # or
-springgen new svc --features redis --redis-mode ssl
+springboot-gen new svc --features redis --redis-mode ssl
 ```
 Generates `RedisSslConfig.java` with Spring Boot 3 SSL bundle integration:
 ```yaml
@@ -248,9 +248,9 @@ keytool -genkeypair -alias redis-client -keyalg RSA -keysize 2048 \
 
 #### Sentinel HA
 ```bash
-springgen new svc --features redis-sentinel
+springboot-gen new svc --features redis-sentinel
 # or
-springgen new svc --features redis --redis-mode sentinel
+springboot-gen new svc --features redis --redis-mode sentinel
 ```
 Generates `RedisSentinelConfig.java`:
 ```java
@@ -270,7 +270,7 @@ REDIS_PASSWORD=
 
 ---
 
-## `springgen.toml` Reference
+## `springboot-gen.toml` Reference
 
 The config file (auto-generated, optional) allows fine-grained control:
 
@@ -330,27 +330,27 @@ app_port = 8080
 
 ## Supporting an Existing Project
 
-### Scenario 1: You have a Spring Boot project with no SpringGen config
+### Scenario 1: You have a Spring Boot project with no SpringbootGen config
 
 ```bash
 # Step 1: Analyze what's already there
-springgen analyze ./my-existing-service --format table
+springboot-gen analyze ./my-existing-service --format table
 
 # Step 2: Save the detected config
-springgen analyze ./my-existing-service --save
+springboot-gen analyze ./my-existing-service --save
 
 # Step 3: Generate supplemental infrastructure files
-springgen import ./my-existing-service --output ./infra-supplement
+springboot-gen import ./my-existing-service --output ./infra-supplement
 
 # Step 4: Manually merge generated files into your project
 # The CLI prints an integration guide at the end
 ```
 
-### Scenario 2: Add missing infrastructure to an existing SpringGen project
+### Scenario 2: Add missing infrastructure to an existing SpringbootGen project
 
 ```bash
 # Add Redis Sentinel + Distributed Tracing
-springgen add redis-sentinel,tracing --path ./my-service
+springboot-gen add redis-sentinel,tracing --path ./my-service
 ```
 
 ### Scenario 3: Detect Redis mode in a legacy project
@@ -372,7 +372,7 @@ Detection confidence levels:
 ```
 my-service/
 ├── pom.xml                                  # All deps, profiles, plugins
-├── springgen.toml                           # Reproducible config
+├── springboot-gen.toml                           # Reproducible config
 ├── Dockerfile                               # Multi-stage, non-root
 ├── docker-compose.yml                       # All infra services + app
 ├── docker-compose.override.yml              # Dev overrides (.env, hot reload)
@@ -432,10 +432,10 @@ my-service/
 ## Architecture
 
 ```
-springgen/
+springboot-gen/
 ├── src/
 │   ├── cli/          # Command parsing (clap), interactive init (dialoguer)
-│   ├── config/       # ProjectConfig — springgen.toml schema (serde)
+│   ├── config/       # ProjectConfig — springboot-gen.toml schema (serde)
 │   ├── features/     # Feature registry with deps, properties, Docker services
 │   ├── engine/       # GenerationEngine — orchestrates all generators
 │   ├── generators/

@@ -978,7 +978,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "springgen"
+name = "springboot-gen"
 version = "0.1.0"
 dependencies = [
  "anyhow",

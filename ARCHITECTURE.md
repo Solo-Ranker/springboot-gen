@@ -1,10 +1,10 @@
 # Architecture & Design Guide
 
-This document explains the internal structure of `SpringGen` and the reasoning behind its architectural decisions. It is intended for contributors who want to understand how the tool works under the hood.
+This document explains the internal structure of `SpringbootGen` and the reasoning behind its architectural decisions. It is intended for contributors who want to understand how the tool works under the hood.
 
 ## 1. System Overview
 
-SpringGen is a **CLI tool written in Rust** that generates production-ready Spring Boot applications. Unlike simple archetypes, it uses a **compositional engine** to dynamically assemble a project based on requested features (e.g., Redis, Kafka, Security).
+SpringbootGen is a **CLI tool written in Rust** that generates production-ready Spring Boot applications. Unlike simple archetypes, it uses a **compositional engine** to dynamically assemble a project based on requested features (e.g., Redis, Kafka, Security).
 
 ### Why Rust?
 - **Single Binary**: Easy distribution (`curl | bash` style) without requiring a JVM on the host machine to *generate* the project.
@@ -21,7 +21,7 @@ src/
 ├── cli/               # Command-line interface definition
 │   └── mod.rs         # Uses `clap` for parsing args (new, init, add)
 ├── config/            # Configuration structs
-│   └── mod.rs         # `ProjectConfig` struct (maps to springgen.toml)
+│   └── mod.rs         # `ProjectConfig` struct (maps to springboot-gen.toml)
 ├── features/          # The "Brain" of the system
 │   ├── mod.rs         # Feature resolution logic
 │   └── registry.rs    # THE BIG FILE: Defines every available feature
@@ -91,8 +91,8 @@ We use a **Hybrid Approach** for generating Java code:
 ### 4.2. File Output Strategy
 
 - **Atomic Writes**: Generators prepare content in memory and write to disk.
-- **Idempotency**: `springgen` tries to be safe. It won't overwrite an existing folder unless `--force` is used.
-- **`springgen.toml`**: This file persists the configuration, allowing `springgen add <feature>` to know what was previously installed (to handle merges perfectly).
+- **Idempotency**: `springboot-gen` tries to be safe. It won't overwrite an existing folder unless `--force` is used.
+- **`springboot-gen.toml`**: This file persists the configuration, allowing `springboot-gen add <feature>` to know what was previously installed (to handle merges perfectly).
 
 ## 5. Adding a New Feature
 

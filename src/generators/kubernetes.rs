@@ -59,7 +59,7 @@ metadata:
   name: {artifact}
   labels:
     app.kubernetes.io/name: {artifact}
-    managed-by: springgen
+    managed-by: springboot-gen
 "#,
             artifact = artifact
         )

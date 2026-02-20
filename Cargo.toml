@@ -1,14 +1,14 @@
 [package]
-name = "springgen"
+name = "springboot-gen"
 version = "0.1.0"
 edition = "2021"
 authors = ["Visal Som"]
 description = "Production-grade Spring Boot project generator with infrastructure composition"
-repository = "https://github.com/Solo-Ranker/springgen"
+repository = "https://github.com/Solo-Ranker/springboot-gen"
 license = "MIT"
 
 [[bin]]
-name = "springgen"
+name = "springboot-gen"
 path = "src/main.rs"
 
 [dependencies]

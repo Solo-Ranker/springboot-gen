@@ -877,7 +877,7 @@ pub fn resolve_features(keys: &[String]) -> anyhow::Result<Vec<FeatureSpec>> {
             .find(|f| f.key == key)
             .ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Unknown feature: '{}'. Run `springgen features` to see available features.",
+                    "Unknown feature: '{}'. Run `springboot-gen features` to see available features.",
                     key
                 )
             })?
