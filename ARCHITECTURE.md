@@ -4,7 +4,7 @@ This document explains the internal structure of `SpringbootGen` and the reasoni
 
 ## 1. System Overview
 
-SpringbootGen is a **CLI tool written in Rust** that generates production-ready Spring Boot applications. Unlike simple archetypes, it uses a **compositional engine** to dynamically assemble a project based on requested features (e.g., Redis, Kafka, Security).
+SpringbootGen is a **CLI tool written in Rust** that generates boilerplate Spring Boot applications. Unlike simple archetypes, it uses a **compositional engine** to dynamically assemble a project based on requested features (e.g., Redis, Kafka, Security).
 
 ### Why Rust?
 - **Single Binary**: Easy distribution (`curl | bash` style) without requiring a JVM on the host machine to *generate* the project.

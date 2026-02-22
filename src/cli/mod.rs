@@ -6,11 +6,11 @@ use crate::analyzer::ProjectAnalyzer;
 use crate::config::ProjectConfig;
 use crate::engine::GenerationEngine;
 
-/// SpringbootGen — Production-grade Spring Boot project generator
+/// SpringbootGen — Boilterplate Spring Boot project generator
 #[derive(Parser)]
 #[command(
     name = "springboot-gen",
-    about = "Generate production-ready Spring Boot backends with full infrastructure",
+    about = "Generate boilerplate Spring Boot backends with full infrastructure",
     long_about = "SpringbootGen generates opinionated Spring Boot applications with Redis, Kafka, \
                   security, Docker, and more — fully configured. You write only business logic.",
     version,
@@ -191,20 +191,20 @@ impl Cli {
 
         match cli.command {
             Commands::New(args) => {
-                let engine = GenerationEngine::new();
+                let engine = GenerationEngine::new()?;
                 engine.generate_project(args, None, false)
             }
             Commands::Preview(args) => {
-                let engine = GenerationEngine::new();
+                let engine = GenerationEngine::new()?;
                 engine.generate_project(args, None, true)
             }
             Commands::Init => {
                 let (args, config) = interactive_init()?;
-                let engine = GenerationEngine::new();
+                let engine = GenerationEngine::new()?;
                 engine.generate_project(args, Some(config), false)
             }
             Commands::Add(args) => {
-                let engine = GenerationEngine::new();
+                let engine = GenerationEngine::new()?;
                 engine.add_features(args)
             }
             Commands::Analyze(args) => {
@@ -268,7 +268,7 @@ fn print_features() {
                 "elasticsearch",
             ],
         ),
-        ("Messaging", vec!["kafka"]),
+        ("Messaging", vec!["kafka", "rabbitmq", "ibmmq"]),
         ("Security", vec!["security", "jwt", "oauth2"]),
         ("API & Docs", vec!["openapi", "graphql", "websocket"]),
         ("Observability", vec!["actuator", "tracing", "metrics"]),
@@ -396,11 +396,11 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         group,
         boot_version: boot_versions[boot_idx].to_string(),
         java_version: java_versions[java_idx].parse()?,
-        features: vec![],                  // Will be populated by other prompts
-        redis_stack: vec![],               // Will be populated by cache prompt
-        kafka_stack: vec![],               // Will be populated by messaging prompt
-        postgres_stack: vec![],            // Will be populated by database prompt
-        mysql_stack: vec![],               // Will be populated by database prompt
+        features: vec![],
+        redis_stack: vec![],
+        kafka_stack: vec![],
+        postgres_stack: vec![],
+        mysql_stack: vec![],
         build_tool,
         gradle_dsl,
         skip_format: false,
@@ -443,7 +443,7 @@ fn prompt_database(
             .default(true)
             .interact()?;
         config.database.flyway_enabled = flyway;
-        
+
         // Stack options for PostgreSQL/MySQL
         if db_feature == "postgres" {
             let stack_options = vec![
@@ -461,9 +461,7 @@ fn prompt_database(
                 args.postgres_stack.push(stack_options[idx].0.to_string());
             }
         } else if db_feature == "mysql" {
-            let stack_options = vec![
-                ("ssl", "Enable SSL/TLS connections"),
-            ];
+            let stack_options = vec![("ssl", "Enable SSL/TLS connections")];
             let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
 
             let selections = MultiSelect::with_theme(theme)
@@ -491,7 +489,7 @@ fn prompt_database(
     // Let's assume yes for now as modifying the registry logic to conditionally exclude docker is complex.
     // Wait, the user specifically asked "do they need docker".
     // If they say NO, we should NOT generate the service in docker-compose.
-    // We can implement this by adding a property "docker.exclude" list in config?
+    // We can implement this by adding a properties "docker.exclude" list in config?
     // Or simpler: just let it generate.
     // Let's stick to generating it by default as per current architecture.
 
@@ -559,7 +557,7 @@ fn prompt_messaging(
     match idx {
         1 => {
             args.features.push("kafka".to_string());
-            
+
             // Kafka stack options
             let stack_options = vec![
                 ("sasl", "SASL Authentication"),

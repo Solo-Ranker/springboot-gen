@@ -149,25 +149,25 @@ impl ProjectAnalyzer {
             style("Generating supplemental files:").yellow().bold()
         );
 
-        crate::generators::spring_properties::PropertiesGenerator::new(&config, &features)
+        crate::generators::spring_properties::PropertiesGenerator::new(&config, &features)?
             .generate(&args.output)?;
         println!(
             "  {} application.yml (updated with detected config)",
             style("✓").green()
         );
 
-        crate::generators::env_file::EnvFileGenerator::new(&config, &features)
+        crate::generators::env_file::EnvFileGenerator::new(&config, &features)?
             .generate(&args.output)?;
         println!("  {} .env.example", style("✓").green());
 
         if features.iter().any(|f| f.key == "docker") {
-            crate::generators::docker::DockerGenerator::new(&config, &features)
+            crate::generators::docker::DockerGenerator::new(&config, &features)?
                 .generate(&args.output)?;
             println!("  {} docker-compose.yml + Dockerfile", style("✓").green());
         }
 
         if features.iter().any(|f| f.key == "kubernetes") {
-            crate::generators::kubernetes::KubernetesGenerator::new(&config, &features)
+            crate::generators::kubernetes::KubernetesGenerator::new(&config, &features)?
                 .generate(&args.output)?;
             println!("  {} k8s/ manifests", style("✓").green());
         }

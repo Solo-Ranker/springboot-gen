@@ -1,0 +1,9 @@
+package {{package}}.dto;
+
+/**
+ * JWT token pair returned after successful authentication.
+ */
+public record TokenResponse(
+    String accessToken,
+    String refreshToken
+) {}

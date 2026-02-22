@@ -1,0 +1,8 @@
+-- V1: Initial schema
+-- Add your tables here
+
+CREATE TABLE IF NOT EXISTS example (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

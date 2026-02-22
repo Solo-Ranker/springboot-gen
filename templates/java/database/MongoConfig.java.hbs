@@ -1,0 +1,12 @@
+package {{package}}.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.mongodb.config.EnableMongoAuditing;
+import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+
+@Configuration
+@EnableMongoAuditing
+@EnableMongoRepositories(basePackages = "{{package}}.repository")
+public class MongoConfig {
+    // Auditing fields (@CreatedDate, @LastModifiedDate) are auto-populated
+}

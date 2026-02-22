@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────
+# Production profile overrides
+# ─────────────────────────────────────────────────────────
+logging:
+  level:
+    root: WARN
+    com.example: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false

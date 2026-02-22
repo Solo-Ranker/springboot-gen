@@ -1,0 +1,45 @@
+package {{package}}.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.spring6.SpringTemplateEngine;
+
+import java.util.Map;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class EmailService {
+
+    private final JavaMailSender mailSender;
+    private final SpringTemplateEngine templateEngine;
+
+    @Value("${app.mail.from}")
+    private String from;
+
+    public void sendTemplateEmail(String to, String subject, String template, Map<String, Object> variables) {
+        try {
+            var ctx = new Context();
+            ctx.setVariables(variables);
+            String html = templateEngine.process("email/" + template, ctx);
+
+            var message = mailSender.createMimeMessage();
+            var helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(from);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(html, true);
+
+            mailSender.send(message);
+            log.info("Sent email to={} subject={}", to, subject);
+        } catch (Exception e) {
+            log.error("Failed to send email to={}: {}", to, e.getMessage(), e);
+            throw new RuntimeException("Email send failed", e);
+        }
+    }
+}

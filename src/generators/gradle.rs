@@ -1,17 +1,48 @@
 use anyhow::Result;
+use handlebars::Handlebars;
+use serde_json::{json, Value};
 use std::path::Path;
 
 use crate::config::ProjectConfig;
 use crate::features::FeatureSpec;
 
+macro_rules! tpl {
+    ($name:literal) => {
+        (
+            $name,
+            include_str!(concat!("../../templates/gradle/", $name, ".hbs")),
+        )
+    };
+}
+
+const TEMPLATES: &[(&str, &str)] = &[
+    tpl!("build.gradle"),
+    tpl!("build.gradle.kts"),
+    tpl!("settings.gradle"),
+    tpl!("settings.gradle.kts"),
+    tpl!("gradle.properties"),
+];
+
 pub struct GradleGenerator<'a> {
     config: &'a ProjectConfig,
     features: &'a [FeatureSpec],
+    hb: Handlebars<'static>,
 }
 
 impl<'a> GradleGenerator<'a> {
-    pub fn new(config: &'a ProjectConfig, features: &'a [FeatureSpec]) -> Self {
-        Self { config, features }
+    pub fn new(config: &'a ProjectConfig, features: &'a [FeatureSpec]) -> Result<Self> {
+        let mut hb = Handlebars::new();
+        hb.set_strict_mode(false);
+        // Prevent Handlebars from escaping characters in code templates
+        hb.register_escape_fn(handlebars::no_escape);
+        for (name, src) in TEMPLATES {
+            hb.register_template_string(name, src)?;
+        }
+        Ok(Self {
+            config,
+            features,
+            hb,
+        })
     }
 
     pub fn generate(&self, out: &Path) -> Result<()> {
@@ -23,157 +54,153 @@ impl<'a> GradleGenerator<'a> {
     }
 
     fn generate_build_gradle(&self, out: &Path) -> Result<()> {
-        let meta = &self.config.project;
-        let is_kotlin_dsl = meta.gradle_dsl == "kotlin";
-
-        let content = if is_kotlin_dsl {
-            self.render_build_gradle_kotlin()
+        let is_kotlin_dsl = self.config.project.gradle_dsl == "kotlin";
+        let (tpl_name, filename) = if is_kotlin_dsl {
+            ("build.gradle.kts", "build.gradle.kts")
         } else {
-            self.render_build_gradle_groovy()
+            ("build.gradle", "build.gradle")
         };
 
-        let filename = if is_kotlin_dsl {
-            "build.gradle.kts"
-        } else {
-            "build.gradle"
-        };
+        let data = json!({
+            "project": {
+                "boot_version":  self.config.project.boot_version,
+                "group":         self.config.project.group,
+                "version":       self.config.project.version,
+                "java_version":  self.config.project.java_version,
+            },
+            "deps": self.collect_deps(is_kotlin_dsl),
+        });
 
+        let content = self.hb.render(tpl_name, &data)?;
         std::fs::write(out.join(filename), content)?;
         Ok(())
     }
 
     fn generate_settings_gradle(&self, out: &Path) -> Result<()> {
-        let meta = &self.config.project;
-        let is_kotlin_dsl = meta.gradle_dsl == "kotlin";
-
-        let content = if is_kotlin_dsl {
-            format!(
-                r#"rootProject.name = "{}"
-"#,
-                meta.name
-            )
+        let is_kotlin_dsl = self.config.project.gradle_dsl == "kotlin";
+        let (tpl_name, filename) = if is_kotlin_dsl {
+            ("settings.gradle.kts", "settings.gradle.kts")
         } else {
-            format!(
-                r#"rootProject.name = '{}'
-"#,
-                meta.name
-            )
+            ("settings.gradle", "settings.gradle")
         };
 
-        let filename = if is_kotlin_dsl {
-            "settings.gradle.kts"
-        } else {
-            "settings.gradle"
-        };
-
+        let data = json!({ "project": { "name": self.config.project.name } });
+        let content = self.hb.render(tpl_name, &data)?;
         std::fs::write(out.join(filename), content)?;
         Ok(())
     }
 
     fn generate_gradle_properties(&self, out: &Path) -> Result<()> {
-        let content = r#"org.gradle.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
-org.gradle.parallel=true
-org.gradle.caching=true
-"#;
+        let content = self.hb.render("gradle.properties", &json!({}))?;
         std::fs::write(out.join("gradle.properties"), content)?;
         Ok(())
     }
 
+    // ── Dependency collection ─────────────────────────────────────────────────
+
+    fn collect_deps(&self, kotlin_dsl: bool) -> Vec<String> {
+        let mut deps: Vec<String> = Vec::new();
+
+        // Core
+        deps.push(self.dep(
+            kotlin_dsl,
+            "implementation",
+            "org.springframework.boot",
+            "spring-boot-starter-web",
+        ));
+        deps.push(self.dep(
+            kotlin_dsl,
+            "implementation",
+            "org.springframework.boot",
+            "spring-boot-starter-validation",
+        ));
+        deps.push(self.dep(kotlin_dsl, "compileOnly", "org.projectlombok", "lombok"));
+        deps.push(self.dep(
+            kotlin_dsl,
+            "annotationProcessor",
+            "org.projectlombok",
+            "lombok",
+        ));
+        deps.push(self.dep(
+            kotlin_dsl,
+            "testImplementation",
+            "org.springframework.boot",
+            "spring-boot-starter-test",
+        ));
+        deps.push(self.dep(
+            kotlin_dsl,
+            "testImplementation",
+            "org.testcontainers",
+            "junit-jupiter",
+        ));
+
+        // Feature deps
+        for feature in self.features {
+            for dep in feature.maven_deps {
+                let scope = match dep.scope {
+                    Some("test") => "testImplementation",
+                    Some("provided") => "compileOnly",
+                    _ => "implementation",
+                };
+                let d = self.dep(kotlin_dsl, scope, dep.group_id, dep.artifact_id);
+                if !deps.contains(&d) {
+                    deps.push(d);
+                }
+            }
+        }
+
+        // Feature-specific test deps
+        if self.has("kafka") {
+            deps.push(self.dep(
+                kotlin_dsl,
+                "testImplementation",
+                "org.springframework.kafka",
+                "spring-kafka-test",
+            ));
+        }
+        if self.has("postgres") {
+            deps.push(self.dep(
+                kotlin_dsl,
+                "testImplementation",
+                "org.testcontainers",
+                "postgresql",
+            ));
+        }
+
+        deps
+    }
+
+    fn dep(&self, kotlin_dsl: bool, scope: &str, group: &str, artifact: &str) -> String {
+        if kotlin_dsl {
+            format!("{}(\"{}:{}\")", scope, group, artifact)
+        } else {
+            format!("{} '{}:{}'", scope, group, artifact)
+        }
+    }
+
+    fn has(&self, key: &str) -> bool {
+        self.features.iter().any(|f| f.key == key)
+    }
+
     fn generate_gradle_wrapper(&self, out: &Path) -> Result<()> {
-        // Create gradle/wrapper directory
         let wrapper_dir = out.join("gradle/wrapper");
         std::fs::create_dir_all(&wrapper_dir)?;
 
-        // Generate gradle-wrapper.properties
-        let wrapper_props = r#"distributionBase=GRADLE_USER_HOME
-distributionPath=wrapper/dists
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
-networkTimeout=10000
-validateDistributionUrl=true
-zipStoreBase=GRADLE_USER_HOME
-zipStorePath=wrapper/dists
-"#;
-        std::fs::write(wrapper_dir.join("gradle-wrapper.properties"), wrapper_props)?;
+        std::fs::write(
+            wrapper_dir.join("gradle-wrapper.properties"),
+            include_str!("../../templates/gradle/gradle-wrapper.properties"),
+        )?;
 
-        // Generate gradlew script (Unix)
-        let gradlew = r#"#!/bin/sh
+        std::fs::write(
+            wrapper_dir.join("gradle-wrapper.jar"),
+            include_bytes!("../../templates/gradle/gradle-wrapper.jar"),
+        )?;
 
-##############################################################################
-#
-#   Gradle start up script for POSIX generated by Gradle.
-#
-##############################################################################
+        std::fs::write(
+            out.join("gradlew"),
+            include_str!("../../templates/gradle/gradlew"),
+        )?;
 
-# Attempt to set APP_HOME
-APP_HOME=$( cd "${APP_HOME:-./}" && pwd -P ) || exit
-
-# Use the maximum available, or set MAX_FD != -1 to use that value.
-MAX_FD=maximum
-
-warn () {
-    echo "$*"
-} >&2
-
-die () {
-    echo
-    echo "$*"
-    echo
-    exit 1
-} >&2
-
-# OS specific support (must be 'true' or 'false').
-cygwin=false
-msys=false
-darwin=false
-nonstop=false
-case "$( uname )" in                #(
-  CYGWIN* )         cygwin=true  ;; #(
-  Darwin* )         darwin=true  ;; #(
-  MSYS* | MINGW* )  msys=true    ;; #(
-  NONSTOP* )        nonstop=true ;;
-esac
-
-CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
-
-# Determine the Java command to use to start the JVM.
-if [ -n "$JAVA_HOME" ] ; then
-    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
-        # IBM's JDK on AIX uses strange locations for the executables
-        JAVACMD=$JAVA_HOME/jre/sh/java
-    else
-        JAVACMD=$JAVA_HOME/bin/java
-    fi
-    if [ ! -x "$JAVACMD" ] ; then
-        die "ERROR: JAVA_HOME is set to an invalid directory: $JAVA_HOME
-
-Please set the JAVA_HOME variable in your environment to match the
-location of your Java installation."
-    fi
-else
-    JAVACMD=java
-    if ! command -v java >/dev/null 2>&1
-    then
-        die "ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-
-Please set the JAVA_HOME variable in your environment to match the
-location of your Java installation."
-    fi
-fi
-
-# Escape application args
-save () {
-    for i do printf %s\\n "$i" | sed "s/'/'\\\\''/g;1s/^/'/;\$s/\$/' \\\\/" ; done
-    echo " "
-}
-APP_ARGS=$(save "$@")
-
-eval "set -- $APP_ARGS"
-
-exec "$JAVACMD" "$@"
-"#;
-        std::fs::write(out.join("gradlew"), gradlew)?;
-
-        // Make gradlew executable on Unix systems
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -182,357 +209,11 @@ exec "$JAVACMD" "$@"
             std::fs::set_permissions(out.join("gradlew"), perms)?;
         }
 
-        // Generate gradlew.bat script (Windows)
-        let gradlew_bat = r#"@rem
-@rem Copyright 2015 the original author or authors.
-@rem
-@rem Licensed under the Apache License, Version 2.0 (the "License");
-@rem you may not use this file except in compliance with the License.
-@rem You may obtain a copy of the License at
-@rem
-@rem      https://www.apache.org/licenses/LICENSE-2.0
-@rem
-@rem Unless required by applicable law or agreed to in writing, software
-@rem distributed under the License is distributed on an "AS IS" BASIS,
-@rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-@rem See the License for the specific language governing permissions and
-@rem limitations under the License.
-@rem
-
-@if "%DEBUG%"=="" @echo off
-@rem ##########################################################################
-@rem
-@rem  Gradle startup script for Windows
-@rem
-@rem ##########################################################################
-
-@rem Set local scope for the variables with windows NT shell
-if "%OS%"=="Windows_NT" setlocal
-
-set DIRNAME=%~dp0
-if "%DIRNAME%"=="" set DIRNAME=.
-set APP_BASE_NAME=%~n0
-set APP_HOME=%DIRNAME%
-
-@rem Resolve any "." and ".." in APP_HOME to make it shorter.
-for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
-
-@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-set DEFAULT_JVM_OPTS=
-
-@rem Find java.exe
-if defined JAVA_HOME goto findJavaFromJavaHome
-
-set JAVA_EXE=java.exe
-%JAVA_EXE% -version >NUL 2>&1
-if %ERRORLEVEL% equ 0 goto execute
-
-echo.
-echo ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-echo.
-echo Please set the JAVA_HOME variable in your environment to match the
-echo location of your Java installation.
-
-goto fail
-
-:findJavaFromJavaHome
-set JAVA_HOME=%JAVA_HOME:"=%
-set JAVA_EXE=%JAVA_HOME%/bin/java.exe
-
-if exist "%JAVA_EXE%" goto execute
-
-echo.
-echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME%
-echo.
-echo Please set the JAVA_HOME variable in your environment to match the
-echo location of your Java installation.
-
-goto fail
-
-:execute
-@rem Setup the command line
-
-set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar
-
-@rem Execute Gradle
-"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %*
-
-:end
-@rem End local scope for the variables with windows NT shell
-if %ERRORLEVEL% equ 0 goto mainEnd
-
-:fail
-rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of
-rem the _cmd.exe /c_ return code!
-set EXIT_CODE=%ERRORLEVEL%
-if %EXIT_CODE% equ 0 set EXIT_CODE=1
-if not ""=="%GRADLE_EXIT_CONSOLE%" exit %EXIT_CODE%
-exit /b %EXIT_CODE%
-
-:mainEnd
-if "%OS%"=="Windows_NT" endlocal
-
-:omega
-"#;
-        std::fs::write(out.join("gradlew.bat"), gradlew_bat)?;
+        std::fs::write(
+            out.join("gradlew.bat"),
+            include_str!("../../templates/gradle/gradlew.bat"),
+        )?;
 
         Ok(())
-    }
-
-    fn render_build_gradle_kotlin(&self) -> String {
-        let meta = &self.config.project;
-
-        // Collect dependencies
-        let mut deps = Vec::new();
-
-        // Core dependencies
-        deps.push(
-            "    implementation(\"org.springframework.boot:spring-boot-starter-web\")".to_string(),
-        );
-        deps.push(
-            "    implementation(\"org.springframework.boot:spring-boot-starter-validation\")"
-                .to_string(),
-        );
-        deps.push("    compileOnly(\"org.projectlombok:lombok\")".to_string());
-        deps.push("    annotationProcessor(\"org.projectlombok:lombok\")".to_string());
-        deps.push(
-            "    testImplementation(\"org.springframework.boot:spring-boot-starter-test\")"
-                .to_string(),
-        );
-        deps.push("    testImplementation(\"org.testcontainers:junit-jupiter\")".to_string());
-
-        // Feature dependencies
-        for feature in self.features {
-            for dep in feature.maven_deps {
-                let gradle_dep = if let Some(scope) = dep.scope {
-                    match scope {
-                        "test" => format!(
-                            "    testImplementation(\"{}:{}\")",
-                            dep.group_id, dep.artifact_id
-                        ),
-                        "provided" => {
-                            format!("    compileOnly(\"{}:{}\")", dep.group_id, dep.artifact_id)
-                        }
-                        _ => format!(
-                            "    implementation(\"{}:{}\")",
-                            dep.group_id, dep.artifact_id
-                        ),
-                    }
-                } else {
-                    format!(
-                        "    implementation(\"{}:{}\")",
-                        dep.group_id, dep.artifact_id
-                    )
-                };
-
-                if !deps.contains(&gradle_dep) {
-                    deps.push(gradle_dep);
-                }
-            }
-        }
-
-        // Add feature-specific test dependencies
-        let has_kafka = self.features.iter().any(|f| f.key == "kafka");
-        if has_kafka {
-            deps.push(
-                "    testImplementation(\"org.springframework.kafka:spring-kafka-test\")"
-                    .to_string(),
-            );
-        }
-
-        let has_postgres = self.features.iter().any(|f| f.key == "postgres");
-        if has_postgres {
-            deps.push("    testImplementation(\"org.testcontainers:postgresql\")".to_string());
-        }
-
-        let deps_str = deps.join("\n");
-
-        format!(
-            r#"plugins {{
-    java
-    id("org.springframework.boot") version "{boot_version}"
-    id("io.spring.dependency-management") version "1.1.4"
-    id("com.diffplug.spotless") version "6.23.3"
-}}
-
-group = "{group}"
-version = "{version}"
-
-java {{
-    sourceCompatibility = JavaVersion.VERSION_{java_version}
-}}
-
-configurations {{
-    compileOnly {{
-        extendsFrom(configurations.annotationProcessor.get())
-    }}
-}}
-
-repositories {{
-    mavenCentral()
-}}
-
-extra["testcontainersVersion"] = "1.19.7"
-
-dependencies {{
-{deps}
-}}
-
-dependencyManagement {{
-    imports {{
-        mavenBom("org.testcontainers:testcontainers-bom:${{extra["testcontainersVersion"]}}")
-    }}
-}}
-
-spotless {{
-    java {{
-        googleJavaFormat("1.17.0")
-        importOrder()
-        removeUnusedImports()
-        trimTrailingWhitespace()
-        endWithNewline()
-    }}
-}}
-
-tasks.withType<Test> {{
-    useJUnitPlatform()
-}}
-
-tasks.bootJar {{
-    archiveFileName.set("${{project.name}}.jar")
-}}
-"#,
-            boot_version = meta.boot_version,
-            group = meta.group,
-            version = meta.version,
-            java_version = meta.java_version,
-            deps = deps_str,
-        )
-    }
-
-    fn render_build_gradle_groovy(&self) -> String {
-        let meta = &self.config.project;
-
-        // Collect dependencies
-        let mut deps = Vec::new();
-
-        // Core dependencies
-        deps.push(
-            "    implementation 'org.springframework.boot:spring-boot-starter-web'".to_string(),
-        );
-        deps.push(
-            "    implementation 'org.springframework.boot:spring-boot-starter-validation'"
-                .to_string(),
-        );
-        deps.push("    compileOnly 'org.projectlombok:lombok'".to_string());
-        deps.push("    annotationProcessor 'org.projectlombok:lombok'".to_string());
-        deps.push(
-            "    testImplementation 'org.springframework.boot:spring-boot-starter-test'"
-                .to_string(),
-        );
-        deps.push("    testImplementation 'org.testcontainers:junit-jupiter'".to_string());
-
-        // Feature dependencies
-        for feature in self.features {
-            for dep in feature.maven_deps {
-                let gradle_dep = if let Some(scope) = dep.scope {
-                    match scope {
-                        "test" => format!(
-                            "    testImplementation '{}:{}'",
-                            dep.group_id, dep.artifact_id
-                        ),
-                        "provided" => {
-                            format!("    compileOnly '{}:{}'", dep.group_id, dep.artifact_id)
-                        }
-                        _ => format!("    implementation '{}:{}'", dep.group_id, dep.artifact_id),
-                    }
-                } else {
-                    format!("    implementation '{}:{}'", dep.group_id, dep.artifact_id)
-                };
-
-                if !deps.contains(&gradle_dep) {
-                    deps.push(gradle_dep);
-                }
-            }
-        }
-
-        // Add feature-specific test dependencies
-        let has_kafka = self.features.iter().any(|f| f.key == "kafka");
-        if has_kafka {
-            deps.push(
-                "    testImplementation 'org.springframework.kafka:spring-kafka-test'".to_string(),
-            );
-        }
-
-        let has_postgres = self.features.iter().any(|f| f.key == "postgres");
-        if has_postgres {
-            deps.push("    testImplementation 'org.testcontainers:postgresql'".to_string());
-        }
-
-        let deps_str = deps.join("\n");
-
-        format!(
-            r#"plugins {{
-    id 'java'
-    id 'org.springframework.boot' version '{boot_version}'
-    id 'io.spring.dependency-management' version '1.1.4'
-    id 'com.diffplug.spotless' version '6.23.3'
-}}
-
-group = '{group}'
-version = '{version}'
-
-java {{
-    sourceCompatibility = '{java_version}'
-}}
-
-configurations {{
-    compileOnly {{
-        extendsFrom configurations.annotationProcessor
-    }}
-}}
-
-repositories {{
-    mavenCentral()
-}}
-
-ext {{
-    set('testcontainersVersion', '1.19.7')
-}}
-
-dependencies {{
-{deps}
-}}
-
-dependencyManagement {{
-    imports {{
-        mavenBom "org.testcontainers:testcontainers-bom:${{testcontainersVersion}}"
-    }}
-}}
-
-spotless {{
-    java {{
-        googleJavaFormat('1.17.0')
-        importOrder()
-        removeUnusedImports()
-        trimTrailingWhitespace()
-        endWithNewline()
-    }}
-}}
-
-tasks.named('test') {{
-    useJUnitPlatform()
-}}
-
-tasks.named('bootJar') {{
-    archiveFileName = "${{project.name}}.jar"
-}}
-"#,
-            boot_version = meta.boot_version,
-            group = meta.group,
-            version = meta.version,
-            java_version = meta.java_version,
-            deps = deps_str,
-        )
     }
 }

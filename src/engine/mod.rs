@@ -1,8 +1,3 @@
-use anyhow::{Context, Result};
-use console::style;
-use indicatif::{ProgressBar, ProgressStyle};
-use std::path::{Path, PathBuf};
-
 use crate::cli::{AddArgs, NewArgs};
 use crate::config::ProjectConfig;
 use crate::features::{resolve_features, FeatureSpec};
@@ -10,29 +5,48 @@ use crate::generators::{
     docker::DockerGenerator, env_file::EnvFileGenerator, java_code::JavaCodeGenerator,
     kubernetes::KubernetesGenerator, pom::PomGenerator, spring_properties::PropertiesGenerator,
 };
+use anyhow::{Context, Result};
+use console::style;
+use handlebars::Handlebars;
+use indicatif::{ProgressBar, ProgressStyle};
+use std::path::{Path, PathBuf};
 
 /// The central generation engine — resolves features, then fans out to generators
-pub struct GenerationEngine;
+
+macro_rules! tpl {
+    ($name:literal) => {
+        (
+            $name,
+            include_str!(concat!("../../templates/misc/", $name, ".hbs")),
+        )
+    };
+}
+
+const MISC_TEMPLATES: &[(&str, &str)] = &[tpl!("gitignore"), tpl!("flyway-init.sql")];
+
+pub struct GenerationEngine {
+    hb: Handlebars<'static>,
+}
 
 impl GenerationEngine {
-    pub fn new() -> Self {
-        Self
+    pub fn new() -> Result<Self> {
+        let mut hb = Handlebars::new();
+        hb.set_strict_mode(false);
+        hb.register_escape_fn(handlebars::no_escape);
+        for (name, src) in MISC_TEMPLATES {
+            hb.register_template_string(name, src)?;
+        }
+        Ok(Self { hb })
     }
 
-    /// Main entry — generates a full project
     pub fn generate_project(
         &self,
         args: NewArgs,
         config_override: Option<ProjectConfig>,
         preview: bool,
     ) -> Result<()> {
-        // ── 1. Resolve features (includes transitive deps) ──────────────────
         let features = resolve_features(&args.features)?;
-
-        // ── 2. Build config ──────────────────────────────────────────────────
         let config = config_override.unwrap_or_else(|| ProjectConfig::from_new_args(&args));
-
-        // ── 3. Determine output path ─────────────────────────────────────────
         let out_dir = args
             .output
             .clone()
@@ -42,7 +56,6 @@ impl GenerationEngine {
             return self.print_preview(&args.name, &features, &config);
         }
 
-        // ── 4. Guard: don't overwrite unless --force ─────────────────────────
         if out_dir.exists() && !args.force {
             anyhow::bail!(
                 "Directory '{}' already exists. Use --force to overwrite.",
@@ -50,63 +63,55 @@ impl GenerationEngine {
             );
         }
 
-        // ── 5. Create directory tree ─────────────────────────────────────────
         let package_path = args.group.replace('.', "/");
         let artifact = to_artifact_id(&args.name);
-
         self.create_dir_tree(&out_dir, &package_path, &artifact, &features)?;
 
-        // ── 6. Progress bar ──────────────────────────────────────────────────
         let pb = self.progress_bar(7 + features.len() as u64);
 
-        // ── 7. Generate build file (pom.xml or build.gradle.kts) ────────────
         match config.project.build_tool.as_str() {
             "maven" => {
                 pb.set_message("Generating pom.xml");
-                PomGenerator::new(&config, &features).generate(&out_dir)?;
+                PomGenerator::new(&config, &features)?.generate(&out_dir)?;
             }
             "gradle" => {
-                pb.set_message("Generating build.gradle.kts");
-                crate::generators::gradle::GradleGenerator::new(&config, &features)
+                let filename = if config.project.gradle_dsl == "groovy" {
+                    "build.gradle"
+                } else {
+                    "build.gradle.kts"
+                };
+                pb.set_message(format!("Generating {filename}"));
+                crate::generators::gradle::GradleGenerator::new(&config, &features)?
                     .generate(&out_dir)?;
             }
-            _ => {
-                anyhow::bail!("Unsupported build tool: {}", config.project.build_tool);
-            }
+            _ => anyhow::bail!("Unsupported build tool: {}", config.project.build_tool),
         }
         pb.inc(1);
 
-        // ── 8. Generate application.yml ─────────────────────────────────────
         pb.set_message("Generating application.yml");
-        PropertiesGenerator::new(&config, &features).generate(&out_dir)?;
+        PropertiesGenerator::new(&config, &features)?.generate(&out_dir)?;
         pb.inc(1);
 
-        // ── 9. Generate .env ─────────────────────────────────────────────────
         pb.set_message("Generating .env / .env.example");
-        EnvFileGenerator::new(&config, &features).generate(&out_dir)?;
+        EnvFileGenerator::new(&config, &features)?.generate(&out_dir)?;
         pb.inc(1);
 
-        // ── 10. Generate Docker artifacts ────────────────────────────────────
         if features.iter().any(|f| f.key == "docker") {
             pb.set_message("Generating Dockerfile + docker-compose.yml");
-            DockerGenerator::new(&config, &features).generate(&out_dir)?;
+            DockerGenerator::new(&config, &features)?.generate(&out_dir)?;
         }
         pb.inc(1);
 
-        // ── 11. Generate Kubernetes manifests ────────────────────────────────
         if features.iter().any(|f| f.key == "kubernetes") {
             pb.set_message("Generating Kubernetes manifests");
-            KubernetesGenerator::new(&config, &features).generate(&out_dir)?;
+            KubernetesGenerator::new(&config, &features)?.generate(&out_dir)?;
         }
         pb.inc(1);
 
-        // ── 12. Generate Java config/boilerplate ─────────────────────────────
         pb.set_message("Generating Java configuration classes");
-        let java_gen = JavaCodeGenerator::new(&config, &features)?;
-        java_gen.generate(&out_dir, &package_path, &artifact)?;
+        JavaCodeGenerator::new(&config, &features)?.generate(&out_dir, &package_path, &artifact)?;
         pb.inc(1);
 
-        // ── 13. Generate initial Flyway migration ────────────────────────────
         if features
             .iter()
             .any(|f| f.key == "postgres" || f.key == "mysql")
@@ -116,29 +121,23 @@ impl GenerationEngine {
         }
         pb.inc(1);
 
-        // ── 14. Emit springboot-gen.toml ──────────────────────────────────────────
         if args.emit_config {
             pb.set_message("Writing springboot-gen.toml");
             config.save(&out_dir.join("springboot-gen.toml"))?;
         }
         pb.inc(1);
 
-        // ── 15. Generate .gitignore ──────────────────────────────────────────
         self.generate_gitignore(&out_dir)?;
-
         pb.finish_with_message("Done!");
 
-        // ── 16. Auto-format generated code ───────────────────────────────────
         if !args.skip_format {
             self.run_formatter(&out_dir, &config)?;
         }
 
         self.print_success(&args.name, &out_dir, &features, &config);
-
         Ok(())
     }
 
-    /// Add features to an existing SpringbootGen project
     pub fn add_features(&self, args: AddArgs) -> Result<()> {
         let config_path = args.path.join("springboot-gen.toml");
         if !config_path.exists() {
@@ -177,29 +176,24 @@ impl GenerationEngine {
         };
         let features = resolve_features(&all_features)?;
 
-        // Append to build file, application.yml, docker-compose.yml
         let pb = self.progress_bar(4);
 
         pb.set_message("Updating build file");
         match config.project.build_tool.as_str() {
-            "maven" => {
-                PomGenerator::new(&config, &features).generate(&args.path)?;
-            }
-            "gradle" => {
-                crate::generators::gradle::GradleGenerator::new(&config, &features)
-                    .generate(&args.path)?;
-            }
+            "maven" => PomGenerator::new(&config, &features)?.generate(&args.path)?,
+            "gradle" => crate::generators::gradle::GradleGenerator::new(&config, &features)?
+                .generate(&args.path)?,
             _ => {}
         }
         pb.inc(1);
 
         pb.set_message("Updating application.yml");
-        PropertiesGenerator::new(&config, &features).generate(&args.path)?;
+        PropertiesGenerator::new(&config, &features)?.generate(&args.path)?;
         pb.inc(1);
 
         pb.set_message("Updating docker-compose.yml");
         if features.iter().any(|f| f.key == "docker") {
-            DockerGenerator::new(&config, &features).generate(&args.path)?;
+            DockerGenerator::new(&config, &features)?.generate(&args.path)?;
         }
         pb.inc(1);
 
@@ -215,7 +209,6 @@ impl GenerationEngine {
 
         pb.finish_with_message("Done!");
 
-        // Update springboot-gen.toml
         config.features = all_features;
         config.save(&config_path)?;
 
@@ -275,58 +268,18 @@ impl GenerationEngine {
         Ok(())
     }
 
-    fn generate_flyway_init(&self, out: &Path) -> Result<()> {
-        let migration_dir = out.join("src/main/resources/db/migration");
-        let migration_file = migration_dir.join("V1__init_schema.sql");
-        if !migration_file.exists() {
-            std::fs::write(
-                &migration_file,
-                "-- V1: Initial schema\n-- Add your tables here\n\nCREATE TABLE IF NOT EXISTS example (\n    id BIGSERIAL PRIMARY KEY,\n    name VARCHAR(255) NOT NULL,\n    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n",
-            )?;
-        }
+    fn generate_gitignore(&self, out: &Path) -> Result<()> {
+        let content = self.hb.render("gitignore", &serde_json::json!({}))?;
+        std::fs::write(out.join(".gitignore"), content)?;
         Ok(())
     }
 
-    fn generate_gitignore(&self, out: &Path) -> Result<()> {
-        let content = r#"# Maven
-target/
-!.mvn/wrapper/maven-wrapper.jar
-
-# Gradle
-.gradle/
-build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# IDE
-.idea/
-*.iml
-*.iws
-.eclipse/
-.project
-.classpath
-.settings/
-*.class
-
-# Spring Boot
-HELP.md
-.DS_Store
-
-# Environment
-.env
-!.env.example
-
-# Docker volumes
-*_data/
-
-# SSL certs (do not commit real certs)
-src/main/resources/ssl/*.p12
-src/main/resources/ssl/*.jks
-!src/main/resources/ssl/*.example
-
-# SpringbootGen
-springboot-gen.lock
-"#;
-        std::fs::write(out.join(".gitignore"), content)?;
+    fn generate_flyway_init(&self, out: &Path) -> Result<()> {
+        let migration_file = out.join("src/main/resources/db/migration/V1__init_schema.sql");
+        if !migration_file.exists() {
+            let content = self.hb.render("flyway-init.sql", &serde_json::json!({}))?;
+            std::fs::write(migration_file, content)?;
+        }
         Ok(())
     }
 

@@ -1,0 +1,38 @@
+package {{package}}.controller;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.web.bind.annotation.*;
+import {{package}}.dto.LoginRequest;
+import {{package}}.dto.TokenResponse;
+import {{package}}.service.JwtService;
+
+/**
+ * Authentication REST endpoints.
+ * POST /api/v1/auth/login   — exchange credentials for tokens
+ * POST /api/v1/auth/refresh — exchange refresh token for new access token
+ */
+@RestController
+@RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final AuthenticationManager authenticationManager;
+    private final UserDetailsService userDetailsService;
+    private final JwtService jwtService;
+
+    @PostMapping("/login")
+    public ResponseEntity<TokenResponse> login(@RequestBody LoginRequest request) {
+        authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(request.username(), request.password()));
+
+        var userDetails = userDetailsService.loadUserByUsername(request.username());
+        var accessToken = jwtService.generateAccessToken(userDetails);
+        var refreshToken = jwtService.generateRefreshToken(userDetails);
+
+        return ResponseEntity.ok(new TokenResponse(accessToken, refreshToken));
+    }
+}

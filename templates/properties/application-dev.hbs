@@ -1,0 +1,18 @@
+# ─────────────────────────────────────────────────────────
+# Development profile overrides
+# ─────────────────────────────────────────────────────────
+spring:
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+
+{{#if has_openapi}}
+springdoc:
+  swagger-ui:
+    enabled: true
+  api-docs:
+    enabled: true
+
+{{/if}}

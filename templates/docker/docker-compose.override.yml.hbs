@@ -1,0 +1,13 @@
+# ─────────────────────────────────────────────────────────
+# docker-compose.override.yml — local dev overrides
+# This file is auto-applied by docker-compose for local dev.
+# Do NOT commit environment secrets here.
+# ─────────────────────────────────────────────────────────
+name: {{artifact}}
+
+services:
+{{artifact}}:
+env_file:
+- .env
+volumes:
+- ./src:/workspace/src:ro   # hot reload with devtools
