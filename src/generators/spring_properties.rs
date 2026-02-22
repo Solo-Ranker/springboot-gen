@@ -63,9 +63,10 @@ impl<'a> PropertiesGenerator<'a> {
             "artifact": crate::engine::to_artifact_id(&self.config.project.name),
             "project": { "name": &self.config.project.name },
 
-            "has_redis":       self.has("redis") || self.has("redis-ssl") || self.has("redis-sentinel"),
-            "redis_ssl":       self.has("redis-ssl"),
-            "redis_sentinel":  self.has("redis-sentinel"),
+            "has_redis":           self.has("redis") || self.has("redis-ssl") || self.has("redis-sentinel") || self.has("redis-ssl-sentinel"),
+            "redis_ssl":           self.has("redis-ssl"),
+            "redis_sentinel":      self.has("redis-sentinel"),
+            "redis_ssl_sentinel":  self.has("redis-ssl-sentinel"),
             "redis": {
                 "host":            r.host,
                 "port":            r.port,
@@ -86,8 +87,10 @@ impl<'a> PropertiesGenerator<'a> {
                 "listener_concurrency": k.listener_concurrency,
             },
 
-            "has_postgres": self.has("postgres"),
-            "has_mysql":    self.has("mysql"),
+            "has_postgres":     self.has("postgres"),
+            "has_postgres_ssl": self.has("postgres-ssl"),
+            "has_mysql":        self.has("mysql"),
+            "has_mysql_ssl":    self.has("mysql-ssl"),
             "db": {
                 "host":          d.host,
                 "port":          d.port,
@@ -95,6 +98,13 @@ impl<'a> PropertiesGenerator<'a> {
                 "username":      d.username,
                 "pool_max_size": d.pool_max_size,
                 "flyway_enabled": d.flyway_enabled,
+                "ssl": {
+                    "mode":                 d.ssl.mode,
+                    "keystore_location":    d.ssl.keystore_location,
+                    "keystore_password":    d.ssl.keystore_password,
+                    "truststore_location":  d.ssl.truststore_location,
+                    "truststore_password":  d.ssl.truststore_password,
+                }
             },
 
             "has_mongodb":       self.has("mongodb"),

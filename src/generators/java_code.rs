@@ -26,6 +26,7 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("redis/RedisConfig"),
     tpl!("redis/RedisSslConfig"),
     tpl!("redis/RedisSentinelConfig"),
+    tpl!("redis/RedisSslSentinelConfig"),
     tpl!("redis/CacheConfig"),
     // Kafka
     tpl!("kafka/KafkaConfig"),
@@ -52,6 +53,8 @@ const TEMPLATES: &[(&str, &str)] = &[
     // Database
     tpl!("database/MongoConfig"),
     tpl!("database/JpaConfig"),
+    tpl!("database/PostgresSslConfig"),
+    tpl!("database/MysqlSslConfig"),
 ];
 
 pub struct JavaCodeGenerator<'a> {
@@ -136,6 +139,15 @@ impl<'a> JavaCodeGenerator<'a> {
                 &config_dir,
                 "RedisSentinelConfig.java",
                 "redis/RedisSentinelConfig",
+                &ctx,
+            )?;
+            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
+        }
+        if self.has("redis-ssl-sentinel") {
+            self.write(
+                &config_dir,
+                "RedisSslSentinelConfig.java",
+                "redis/RedisSslSentinelConfig",
                 &ctx,
             )?;
             self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
@@ -269,6 +281,24 @@ impl<'a> JavaCodeGenerator<'a> {
         }
         if self.has("postgres") || self.has("mysql") {
             self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
+        }
+        if self.has("postgres-ssl") {
+            self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
+            self.write(
+                &config_dir,
+                "PostgresSslConfig.java",
+                "database/PostgresSslConfig",
+                &ctx,
+            )?;
+        }
+        if self.has("mysql-ssl") {
+            self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
+            self.write(
+                &config_dir,
+                "MysqlSslConfig.java",
+                "database/MysqlSslConfig",
+                &ctx,
+            )?;
         }
 
         Ok(())

@@ -15,15 +15,20 @@ spring:
 {{#if has_redis}}
   data:
     redis:
-      {{#if redis_sentinel}}
+{{#if redis_sentinel}}
       sentinel:
         master: ${REDIS_SENTINEL_MASTER:{{redis.sentinel.master}}}
         nodes: ${REDIS_SENTINEL_NODES:{{redis.sentinel.nodes}}}
         password: ${REDIS_SENTINEL_PASSWORD:}
-      {{else}}
+{{else}}
       host: ${REDIS_HOST:{{redis.host}}}
       port: ${REDIS_PORT:{{redis.port}}}
-      {{/if}}
+{{#if redis_ssl}}
+      ssl:
+        enabled: true
+        bundle: redis-ssl
+{{/if}}
+{{/if}}
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DB:0}
       lettuce:
@@ -31,11 +36,6 @@ spring:
           max-active: {{redis.pool_max_active}}
           max-idle: {{redis.pool_max_idle}}
           min-idle: {{redis.pool_min_idle}}
-      {{#if redis_ssl}}
-      ssl:
-        enabled: true
-        bundle: redis-ssl
-      {{/if}}
 {{/if}}
 {{#if has_kafka}}
   kafka:
@@ -85,6 +85,47 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 {{/if}}
+{{#if has_postgres_ssl}}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:{{db.host}}}:${DB_PORT:{{db.port}}}/${DB_NAME:{{db.name}}}?sslmode=${DB_SSL_MODE:require}
+    username: ${DB_USER:{{db.username}}}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:{{db.pool_max_size}}}
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 20000
+      leak-detection-threshold: 60000
+    data-source-properties:
+      ssl: true
+      sslmode: ${DB_SSL_MODE:require}
+      sslrootcert: ${DB_SSL_TRUSTSTORE:classpath:ssl/db-truststore.p12}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: false
+        format_sql: true
+        default_schema: public
+    open-in-view: false
+  flyway:
+    enabled: {{db.flyway_enabled}}
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  ssl:
+    bundle:
+      jks:
+        db-ssl:
+          keystore:
+            location: ${DB_SSL_KEYSTORE:classpath:ssl/db-client.p12}
+            password: ${DB_SSL_KEYSTORE_PASSWORD:changeit}
+          truststore:
+            location: ${DB_SSL_TRUSTSTORE:classpath:ssl/db-truststore.p12}
+            password: ${DB_SSL_TRUSTSTORE_PASSWORD:changeit}
+{{/if}}
 {{#if has_mysql}}
   datasource:
     url: jdbc:mysql://${DB_HOST:{{db.host}}}:${DB_PORT:3306}/${DB_NAME:{{db.name}}}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
@@ -103,6 +144,41 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+{{/if}}
+{{#if has_mysql_ssl}}
+  datasource:
+    url: jdbc:mysql://${DB_HOST:{{db.host}}}:${DB_PORT:3306}/${DB_NAME:{{db.name}}}?useSSL=true&requireSSL=true&verifyServerCertificate=true&serverTimezone=UTC
+    username: ${DB_USER:{{db.username}}}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:{{db.pool_max_size}}}
+      minimum-idle: 2
+    data-source-properties:
+      sslMode: ${DB_SSL_MODE:REQUIRED}
+      trustCertificateKeyStoreUrl: ${DB_SSL_TRUSTSTORE:classpath:ssl/db-truststore.p12}
+      trustCertificateKeyStorePassword: ${DB_SSL_TRUSTSTORE_PASSWORD:changeit}
+      clientCertificateKeyStoreUrl: ${DB_SSL_KEYSTORE:classpath:ssl/db-client.p12}
+      clientCertificateKeyStorePassword: ${DB_SSL_KEYSTORE_PASSWORD:changeit}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    open-in-view: false
+  flyway:
+    enabled: true
+  ssl:
+    bundle:
+      jks:
+        db-ssl:
+          keystore:
+            location: ${DB_SSL_KEYSTORE:classpath:ssl/db-client.p12}
+            password: ${DB_SSL_KEYSTORE_PASSWORD:changeit}
+          truststore:
+            location: ${DB_SSL_TRUSTSTORE:classpath:ssl/db-truststore.p12}
+            password: ${DB_SSL_TRUSTSTORE_PASSWORD:changeit}
 {{/if}}
 {{#if has_mongodb}}
   data:
@@ -137,6 +213,18 @@ spring:
           auth: false
           starttls:
             enable: false
+{{/if}}
+{{#if redis_ssl}}
+  ssl:
+    bundle:
+      jks:
+        redis-ssl:
+          keystore:
+            location: ${REDIS_SSL_KEYSTORE:classpath:ssl/redis-client.p12}
+            password: ${REDIS_SSL_KEYSTORE_PASSWORD:changeit}
+          truststore:
+            location: ${REDIS_SSL_TRUSTSTORE:classpath:ssl/redis-truststore.p12}
+            password: ${REDIS_SSL_TRUSTSTORE_PASSWORD:changeit}
 {{/if}}
 
 server:
@@ -201,19 +289,6 @@ springdoc:
     title: {{project.name}} API
     version: v1
     description: "API documentation for {{project.name}}"
-{{/if}}
-{{#if redis_ssl}}
-spring:
-  ssl:
-    bundle:
-      jks:
-        redis-ssl:
-          keystore:
-            location: ${REDIS_SSL_KEYSTORE:classpath:ssl/redis-client.p12}
-            password: ${REDIS_SSL_KEYSTORE_PASSWORD:changeit}
-          truststore:
-            location: ${REDIS_SSL_TRUSTSTORE:classpath:ssl/redis-truststore.p12}
-            password: ${REDIS_SSL_TRUSTSTORE_PASSWORD:changeit}
 {{/if}}
 
 app:

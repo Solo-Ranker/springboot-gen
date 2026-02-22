@@ -501,7 +501,7 @@ fn prompt_cache(
     config: &mut ProjectConfig,
     args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::{Confirm, MultiSelect};
+    use dialoguer::{Confirm, Select};
 
     if !Confirm::with_theme(theme)
         .with_prompt("Add Redis Cache?")
@@ -511,34 +511,33 @@ fn prompt_cache(
         return Ok(());
     }
 
-    args.features.push("redis".to_string());
-
-    // Stack options for Redis
-    let stack_options = vec![
-        ("ssl", "Enable SSL/TLS encryption"),
-        ("sentinel", "High Availability with Sentinel"),
-        ("cluster", "Redis Cluster mode"),
+    let modes = vec![
+        ("redis",              "Standalone (no TLS, no HA)"),
+        ("redis-ssl",          "SSL/TLS encryption only"),
+        ("redis-sentinel",     "Sentinel HA (no TLS)"),
+        ("redis-ssl-sentinel", "SSL/TLS + Sentinel HA  [production-grade]"),
     ];
-    let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+    let labels: Vec<&str> = modes.iter().map(|(_, l)| *l).collect();
 
-    let selections = MultiSelect::with_theme(theme)
-        .with_prompt("Redis Stack Options (optional)")
+    let idx = Select::with_theme(theme)
+        .with_prompt("Redis mode")
         .items(&labels)
+        .default(0)
         .interact()?;
 
-    for idx in selections {
-        args.redis_stack.push(stack_options[idx].0.to_string());
-    }
+    let (feature_key, redis_mode) = match idx {
+        0 => ("redis",              "standalone"),
+        1 => ("redis-ssl",         "ssl"),
+        2 => ("redis-sentinel",    "sentinel"),
+        _ => ("redis-ssl-sentinel","ssl-sentinel"),
+    };
 
-    // Update config based on selections
-    if !args.redis_stack.is_empty() {
-        config.redis.mode = args.redis_stack.join(",");
-    } else {
-        config.redis.mode = "standalone".to_string();
-    }
+    args.features.push(feature_key.to_string());
+    config.redis.mode = redis_mode.to_string();
 
     Ok(())
 }
+
 
 fn prompt_messaging(
     theme: &dialoguer::theme::ColorfulTheme,

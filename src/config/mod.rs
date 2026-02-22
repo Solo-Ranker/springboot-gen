@@ -207,6 +207,40 @@ pub struct DatabaseConfig {
 
     #[serde(default = "default_true")]
     pub flyway_enabled: bool,
+
+    /// SSL configuration for the database connection
+    #[serde(default)]
+    pub ssl: DatabaseSslConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DatabaseSslConfig {
+    /// Enable SSL for the database connection
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// sslmode for PostgreSQL (disable | allow | prefer | require | verify-ca | verify-full)
+    /// or sslMode for MySQL (DISABLED | PREFERRED | REQUIRED | VERIFY_CA | VERIFY_IDENTITY)
+    #[serde(default = "default_db_ssl_mode")]
+    pub mode: String,
+
+    /// Path to the PKCS12 client keystore (or classpath: reference)
+    #[serde(default)]
+    pub keystore_location: String,
+
+    #[serde(default = "default_ssl_password")]
+    pub keystore_password: String,
+
+    /// Path to the truststore file
+    #[serde(default)]
+    pub truststore_location: String,
+
+    #[serde(default = "default_ssl_password")]
+    pub truststore_password: String,
+
+    /// Whether to verify the server certificate hostname
+    #[serde(default = "default_true")]
+    pub verify_server_cert: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -350,6 +384,12 @@ fn default_build_tool() -> String {
 fn default_gradle_dsl() -> String {
     "kotlin".into()
 }
+fn default_db_ssl_mode() -> String {
+    "prefer".into()
+}
+fn default_ssl_password() -> String {
+    "changeit".into()
+}
 
 // ── Config loading / persistence ─────────────────────────────────────────────
 
@@ -404,9 +444,9 @@ impl ProjectConfig {
         let has_redis = self.features.iter().any(|f| f.starts_with("redis"));
         if has_redis {
             match self.redis.mode.as_str() {
-                "standalone" | "ssl" | "sentinel" | "cluster" => {}
+                "standalone" | "ssl" | "sentinel" | "ssl-sentinel" | "cluster" => {}
                 other => bail!(
-                    "redis.mode must be one of: standalone, ssl, sentinel, cluster (got '{}')",
+                    "redis.mode must be one of: standalone, ssl, sentinel, ssl-sentinel, cluster (got '{}')",
                     other
                 ),
             }

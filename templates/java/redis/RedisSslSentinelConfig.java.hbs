@@ -1,0 +1,136 @@
+package {{package}}.config;
+
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SslOptions;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisSentinelConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import java.time.Duration;
+import java.util.Arrays;
+
+/**
+* Redis configuration — Sentinel HA with SSL/TLS encryption.
+*
+* <p>Combines Sentinel automatic failover with mutual TLS for production-grade security.
+    * Requires at least 3 Sentinel nodes. All Redis nodes (master + replicas) must serve TLS.
+    *
+    *
+<p>Certificate setup:
+    *
+<pre>
+ *   # From project root — generates CA + server + client certs
+ *   bash docker/redis-ssl/generate-certs.sh
+ *   # Then import into JKS/P12 for the Spring SSL bundle
+ * </pre>
+*
+* <p>Environment variables:
+    *
+<ul>
+    * <li>REDIS_SENTINEL_MASTER — sentinel master name (default: mymaster)</li>
+    * <li>REDIS_SENTINEL_NODES — comma-separated host:port sentinel nodes</li>
+    * <li>REDIS_SENTINEL_PASSWORD — sentinel auth password (optional)</li>
+    * <li>REDIS_PASSWORD — Redis data node password (optional)</li>
+    * <li>REDIS_SSL_KEYSTORE / REDIS_SSL_KEYSTORE_PASSWORD — client key material</li>
+    * <li>REDIS_SSL_TRUSTSTORE / REDIS_SSL_TRUSTSTORE_PASSWORD — CA truststore</li>
+    * </ul>
+*/
+@Configuration
+public class RedisSslSentinelConfig {
+
+@Value("${spring.data.redis.sentinel.master}")
+private String sentinelMaster;
+
+@Value("${spring.data.redis.sentinel.nodes}")
+private String sentinelNodes;
+
+@Value("${spring.data.redis.sentinel.password:}")
+private String sentinelPassword;
+
+@Value("${spring.data.redis.password:}")
+private String redisPassword;
+
+@Value("${spring.data.redis.database:0}")
+private int database;
+
+@Value("${spring.ssl.bundle.jks.redis-ssl.keystore.location}")
+private Resource keystoreLocation;
+
+@Value("${spring.ssl.bundle.jks.redis-ssl.keystore.password}")
+private String keystorePassword;
+
+@Value("${spring.ssl.bundle.jks.redis-ssl.truststore.location}")
+private Resource truststoreLocation;
+
+@Value("${spring.ssl.bundle.jks.redis-ssl.truststore.password}")
+private String truststorePassword;
+
+@Bean
+public RedisConnectionFactory redisConnectionFactory() throws Exception {
+// Build SSL options with keystore + truststore for mTLS
+var sslOptions = SslOptions.builder()
+.keystore(keystoreLocation.getFile(), keystorePassword.toCharArray())
+.truststore(truststoreLocation.getFile(), truststorePassword.toCharArray())
+.build();
+
+var clientOptions = ClientOptions.builder()
+.sslOptions(sslOptions)
+.build();
+
+// Configure Sentinel
+var sentinelConfig = new RedisSentinelConfiguration();
+sentinelConfig.setMaster(sentinelMaster);
+
+Arrays.stream(sentinelNodes.split(","))
+.map(String::trim)
+.filter(node -> !node.isBlank())
+.forEach(node -> {
+String[] parts = node.split(":");
+sentinelConfig.sentinel(parts[0], Integer.parseInt(parts[1]));
+});
+
+if (sentinelPassword != null && !sentinelPassword.isBlank()) {
+sentinelConfig.setSentinelPassword(sentinelPassword);
+}
+if (redisPassword != null && !redisPassword.isBlank()) {
+sentinelConfig.setPassword(redisPassword);
+}
+sentinelConfig.setDatabase(database);
+
+var poolConfig = new GenericObjectPoolConfig<Object>();
+    poolConfig.setMaxTotal(16);
+    poolConfig.setMaxIdle(8);
+    poolConfig.setMinIdle(2);
+    poolConfig.setBlockWhenExhausted(true);
+
+    var lettuceConfig = LettucePoolingClientConfiguration.builder()
+    .useSsl()
+    .clientOptions(clientOptions)
+    .commandTimeout(Duration.ofMillis(2000))
+    .poolConfig(poolConfig)
+    .build();
+
+    return new LettuceConnectionFactory(sentinelConfig, lettuceConfig);
+    }
+
+    @Bean
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
+        var template = new RedisTemplate<String, Object>();
+            template.setConnectionFactory(factory);
+            template.setKeySerializer(new StringRedisSerializer());
+            template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
+                template.setHashKeySerializer(new StringRedisSerializer());
+                template.setHashValueSerializer(new Jackson2JsonRedisSerializer<>(Object.class));
+                    template.afterPropertiesSet();
+                    return template;
+                    }
+                    }

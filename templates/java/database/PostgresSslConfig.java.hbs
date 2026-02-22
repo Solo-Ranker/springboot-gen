@@ -1,0 +1,103 @@
+package {{package}}.config;
+
+import com.zaxxer.hikari.HikariDataSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import javax.sql.DataSource;
+import java.util.Properties;
+
+/**
+* PostgreSQL SSL DataSource configuration.
+*
+* <p>Configures HikariCP with SSL client-certificate authentication.
+    * The JDBC URL uses {@code sslmode=require} — override {@code DB_SSL_MODE}
+    * for stricter verification ({@code verify-ca} or {@code verify-full}) in production.
+    *
+    *
+<p>Keystore / truststore must be PKCS12 format. Generate development certs:
+    *
+<pre>
+ *   bash docker/postgres-ssl/generate-certs.sh
+ * </pre>
+*
+* <p>Then import CA cert into a truststore:
+    *
+<pre>
+ *   keytool -importcert -alias pg-ca \
+ *     -file docker/postgres-ssl/certs/ca.crt \
+ *     -keystore src/main/resources/ssl/db-truststore.p12 \
+ *     -storetype PKCS12 -storepass changeit -noprompt
+ * </pre>
+*
+* <p>Environment variables:
+    *
+<ul>
+    * <li>DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD</li>
+    * <li>DB_SSL_MODE — sslmode value (require | verify-ca | verify-full)</li>
+    * <li>DB_SSL_KEYSTORE / DB_SSL_KEYSTORE_PASSWORD — client keystore (optional for mTLS)</li>
+    * <li>DB_SSL_TRUSTSTORE / DB_SSL_TRUSTSTORE_PASSWORD — CA truststore</li>
+    * </ul>
+*/
+@Configuration
+public class PostgresSslConfig {
+
+@Value("${spring.datasource.url}")
+private String jdbcUrl;
+
+@Value("${spring.datasource.username}")
+private String username;
+
+@Value("${spring.datasource.password:}")
+private String password;
+
+@Value("${spring.datasource.hikari.maximum-pool-size:10}")
+private int maxPoolSize;
+
+@Value("${DB_SSL_MODE:require}")
+private String sslMode;
+
+@Value("${DB_SSL_TRUSTSTORE:classpath:ssl/db-truststore.p12}")
+private String truststoreLocation;
+
+@Value("${DB_SSL_TRUSTSTORE_PASSWORD:changeit}")
+private String truststorePassword;
+
+@Value("${DB_SSL_KEYSTORE:}")
+private String keystoreLocation;
+
+@Value("${DB_SSL_KEYSTORE_PASSWORD:changeit}")
+private String keystorePassword;
+
+@Primary
+@Bean
+public DataSource dataSource() {
+var ds = new HikariDataSource();
+ds.setJdbcUrl(jdbcUrl);
+ds.setUsername(username);
+ds.setPassword(password);
+ds.setMaximumPoolSize(maxPoolSize);
+ds.setMinimumIdle(2);
+ds.setIdleTimeout(300_000L);
+ds.setConnectionTimeout(20_000L);
+ds.setLeakDetectionThreshold(60_000L);
+ds.setDriverClassName("org.postgresql.Driver");
+
+Properties props = new Properties();
+props.setProperty("ssl", "true");
+props.setProperty("sslmode", sslMode);
+props.setProperty("sslrootcert", truststoreLocation);
+if (!keystoreLocation.isBlank()) {
+props.setProperty("sslcert", keystoreLocation);
+props.setProperty("sslkey", keystorePassword);
+}
+ds.setDataSourceProperties(props);
+
+return ds;
+}
+}
