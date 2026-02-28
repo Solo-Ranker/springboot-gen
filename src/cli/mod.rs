@@ -60,7 +60,7 @@ pub struct NewArgs {
     pub group: String,
 
     /// Spring Boot version
-    #[arg(long, default_value = "3.2.5")]
+    #[arg(long, default_value = "3.5.11")]
     pub boot_version: String,
 
     /// Java version
@@ -348,7 +348,7 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         .default("com.example".to_string())
         .interact_text()?;
 
-    let boot_versions = vec!["3.2.5", "3.3.0", "3.1.12"];
+    let boot_versions = vec!["3.5.11", "3.4.3", "3.3.9"];
     let boot_idx = Select::with_theme(theme)
         .with_prompt("Spring Boot version")
         .items(&boot_versions)
@@ -475,24 +475,6 @@ fn prompt_database(
         }
     }
 
-    // We assume docker service is generated if feature is enabled,
-    // unless we want to ask specifically "Generate Docker service for DB?"
-    // For now, let's keep it implicit with the feature, but we could add a specific prompt if needed.
-    // The user request said: "user can selected what kind of database ... do they need docker"
-    // So let's ask.
-
-    // Note: The current features/registry logic generates docker service AUTOMATICALLY if the feature is present.
-    // To support "feature present but NO docker service", we would need to modify the generators or registry logic.
-    // OR we just don't add the feature? No, we need the feature for Java code.
-    // We can add a flag in ExtraProperties or Config to disable docker for specific component?
-    // Or we just assume if they select the DB, they probably want the docker container for local dev?
-    // Let's assume yes for now as modifying the registry logic to conditionally exclude docker is complex.
-    // Wait, the user specifically asked "do they need docker".
-    // If they say NO, we should NOT generate the service in docker-compose.
-    // We can implement this by adding a properties "docker.exclude" list in config?
-    // Or simpler: just let it generate.
-    // Let's stick to generating it by default as per current architecture.
-
     Ok(())
 }
 
@@ -512,10 +494,13 @@ fn prompt_cache(
     }
 
     let modes = vec![
-        ("redis",              "Standalone (no TLS, no HA)"),
-        ("redis-ssl",          "SSL/TLS encryption only"),
-        ("redis-sentinel",     "Sentinel HA (no TLS)"),
-        ("redis-ssl-sentinel", "SSL/TLS + Sentinel HA  [production-grade]"),
+        ("redis", "Standalone (no TLS, no HA)"),
+        ("redis-ssl", "SSL/TLS encryption only"),
+        ("redis-sentinel", "Sentinel HA (no TLS)"),
+        (
+            "redis-ssl-sentinel",
+            "SSL/TLS + Sentinel HA  [production-grade]",
+        ),
     ];
     let labels: Vec<&str> = modes.iter().map(|(_, l)| *l).collect();
 
@@ -526,10 +511,10 @@ fn prompt_cache(
         .interact()?;
 
     let (feature_key, redis_mode) = match idx {
-        0 => ("redis",              "standalone"),
-        1 => ("redis-ssl",         "ssl"),
-        2 => ("redis-sentinel",    "sentinel"),
-        _ => ("redis-ssl-sentinel","ssl-sentinel"),
+        0 => ("redis", "standalone"),
+        1 => ("redis-ssl", "ssl"),
+        2 => ("redis-sentinel", "sentinel"),
+        _ => ("redis-ssl-sentinel", "ssl-sentinel"),
     };
 
     args.features.push(feature_key.to_string());
@@ -537,7 +522,6 @@ fn prompt_cache(
 
     Ok(())
 }
-
 
 fn prompt_messaging(
     theme: &dialoguer::theme::ColorfulTheme,

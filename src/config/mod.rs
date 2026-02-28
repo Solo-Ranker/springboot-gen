@@ -75,6 +75,10 @@ pub struct RedisConfig {
     #[serde(default)]
     pub sentinel: RedisSentinelConfig,
 
+    // ── Cluster-specific ────────────────────────────────
+    #[serde(default = "default_cluster_nodes")]
+    pub cluster_nodes: Vec<String>,
+
     // ── Connection pool ─────────────────────────────────
     #[serde(default = "default_pool_max_active")]
     pub pool_max_active: u8,
@@ -298,6 +302,13 @@ fn default_sentinel_nodes() -> Vec<String> {
         "localhost:26379".into(),
         "localhost:26380".into(),
         "localhost:26381".into(),
+    ]
+}
+fn default_cluster_nodes() -> Vec<String> {
+    vec![
+        "localhost:7000".into(),
+        "localhost:7001".into(),
+        "localhost:7002".into(),
     ]
 }
 fn default_pool_max_active() -> u8 {

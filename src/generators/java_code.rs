@@ -23,10 +23,8 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("core/GlobalExceptionHandler"),
     tpl!("core/HealthController"),
     // Redis
+    tpl!("redis/RedisProperties"),
     tpl!("redis/RedisConfig"),
-    tpl!("redis/RedisSslConfig"),
-    tpl!("redis/RedisSentinelConfig"),
-    tpl!("redis/RedisSslSentinelConfig"),
     tpl!("redis/CacheConfig"),
     // Kafka
     tpl!("kafka/KafkaConfig"),
@@ -50,11 +48,22 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("integrations/EmailConfig"),
     tpl!("integrations/EmailService"),
     tpl!("integrations/WebSocketConfig"),
-    // Database
+    // Database — standalone
     tpl!("database/MongoConfig"),
     tpl!("database/JpaConfig"),
-    tpl!("database/PostgresSslConfig"),
-    tpl!("database/MysqlSslConfig"),
+    tpl!("database/DatabaseProperties"),
+    tpl!("database/JdbcUrlBuilder"),
+    tpl!("database/DatabaseConfig"),
+    // Database — replication
+    tpl!("database/replication/DatabaseType"),
+    tpl!("database/replication/DataSourceType"),
+    tpl!("database/replication/DatabaseProperties"),
+    tpl!("database/replication/JdbcUrlBuilder"),
+    tpl!("database/replication/HikariDataSourceFactory"),
+    tpl!("database/replication/DatabaseConfig"),
+    tpl!("database/replication/LoadBalanceRoutingDataSource"),
+    tpl!("database/replication/RoutingDataSourceContext"),
+    tpl!("database/replication/TransactionRoutingAspect"),
 ];
 
 pub struct JavaCodeGenerator<'a> {
@@ -119,37 +128,19 @@ impl<'a> JavaCodeGenerator<'a> {
         )?;
 
         // ── Redis ─────────────────────────────────────────────────────────────
+        // All redis variants use the same unified RedisConfig + RedisProperties.
+        // Mode (standalone/sentinel/cluster) and SSL are controlled via app.redis.* in YAML.
+        let props_dir = base.join("config/properties");
         let ctx = json!({ "package": package });
 
-        if self.has("redis") {
+        if self.has("redis")
+            || self.has("redis-ssl")
+            || self.has("redis-sentinel")
+            || self.has("redis-ssl-sentinel")
+            || self.has("redis-cluster")
+        {
+            self.write(&props_dir, "RedisProperties.java", "redis/RedisProperties", &ctx)?;
             self.write(&config_dir, "RedisConfig.java", "redis/RedisConfig", &ctx)?;
-            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
-        }
-        if self.has("redis-ssl") {
-            self.write(
-                &config_dir,
-                "RedisSslConfig.java",
-                "redis/RedisSslConfig",
-                &ctx,
-            )?;
-            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
-        }
-        if self.has("redis-sentinel") {
-            self.write(
-                &config_dir,
-                "RedisSentinelConfig.java",
-                "redis/RedisSentinelConfig",
-                &ctx,
-            )?;
-            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
-        }
-        if self.has("redis-ssl-sentinel") {
-            self.write(
-                &config_dir,
-                "RedisSslSentinelConfig.java",
-                "redis/RedisSslSentinelConfig",
-                &ctx,
-            )?;
             self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
         }
 
@@ -271,6 +262,12 @@ impl<'a> JavaCodeGenerator<'a> {
         }
 
         // ── Database ──────────────────────────────────────────────────────────
+        let ctx = json!({ "package": package });
+        let common_dir = base.join("common/builder");
+        let enums_dir  = base.join("common/enums");
+        let routing_dir = config_dir.join("routing");
+        let props_dir   = base.join("config/properties");
+
         if self.has("mongodb") {
             self.write(
                 &config_dir,
@@ -279,24 +276,94 @@ impl<'a> JavaCodeGenerator<'a> {
                 &ctx,
             )?;
         }
-        if self.has("postgres") || self.has("mysql") {
-            self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
-        }
-        if self.has("postgres-ssl") {
+
+        // Standalone DB: postgres | mysql | postgres-ssl | mysql-ssl
+        if self.has("postgres")
+            || self.has("mysql")
+            || self.has("postgres-ssl")
+            || self.has("mysql-ssl")
+        {
             self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
             self.write(
+                &props_dir,
+                "DatabaseProperties.java",
+                "database/DatabaseProperties",
+                &ctx,
+            )?;
+            self.write(
+                &common_dir,
+                "JdbcUrlBuilder.java",
+                "database/JdbcUrlBuilder",
+                &ctx,
+            )?;
+            self.write(
                 &config_dir,
-                "PostgresSslConfig.java",
-                "database/PostgresSslConfig",
+                "DatabaseConfig.java",
+                "database/DatabaseConfig",
                 &ctx,
             )?;
         }
-        if self.has("mysql-ssl") {
+
+        // Replication DB: master-slave setup
+        if self.has("db-replication") {
             self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
+            // Enums
+            self.write(
+                &enums_dir,
+                "DatabaseType.java",
+                "database/replication/DatabaseType",
+                &ctx,
+            )?;
+            self.write(
+                &enums_dir,
+                "DataSourceType.java",
+                "database/replication/DataSourceType",
+                &ctx,
+            )?;
+            // Properties
+            self.write(
+                &props_dir,
+                "DatabaseProperties.java",
+                "database/replication/DatabaseProperties",
+                &ctx,
+            )?;
+            // Builders & factories
+            self.write(
+                &common_dir,
+                "JdbcUrlBuilder.java",
+                "database/replication/JdbcUrlBuilder",
+                &ctx,
+            )?;
             self.write(
                 &config_dir,
-                "MysqlSslConfig.java",
-                "database/MysqlSslConfig",
+                "HikariDataSourceFactory.java",
+                "database/replication/HikariDataSourceFactory",
+                &ctx,
+            )?;
+            // Config
+            self.write(
+                &config_dir,
+                "DatabaseConfig.java",
+                "database/replication/DatabaseConfig",
+                &ctx,
+            )?;
+            // Routing
+            self.write(
+                &routing_dir,
+                "RoutingDataSourceContext.java",
+                "database/replication/RoutingDataSourceContext",
+                &ctx,
+            )?;
+            self.write(
+                &routing_dir,
+                "LoadBalanceRoutingDataSource.java",
+                "database/replication/LoadBalanceRoutingDataSource",
+                &ctx,
+            )?;
+            self.write(
+                &routing_dir,
+                "TransactionRoutingAspect.java",
+                "database/replication/TransactionRoutingAspect",
                 &ctx,
             )?;
         }

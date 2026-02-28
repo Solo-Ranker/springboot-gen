@@ -1,0 +1,73 @@
+package {{package}}.config.properties;
+
+import {{package}}.common.enums.DatabaseType;
+import java.util.List;
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+* Database replication (master-slave) connection properties bound from {@code app.datasource.*}.
+*
+* <p>SSL is shared across master and all slaves. The routing layer automatically
+    * directs {@code @Transactional(readOnly = true)} operations to a slave via round-robin.
+    */
+    @Data
+    @ConfigurationProperties(prefix = "app.datasource")
+    public class DatabaseProperties {
+
+    private DatabaseType type;
+    private NodeProperties master;
+    private List<NodeProperties> slaves;
+        private Ssl ssl = new Ssl();
+        private Pool pool = new Pool();
+        private Flyway flyway = new Flyway();
+
+        @Data
+        public static class NodeProperties {
+        private String host;
+        private int port;
+        private String database;
+        private String username;
+        private String password;
+        }
+
+        @Data
+        public static class Ssl {
+        private boolean enabled = true;
+        private String mode = "require"; // disable | allow | prefer | require | verify-ca | verify-full
+        private String certPath; // client cert (PEM)
+        private String keyPath; // client key (PEM)
+        private String rootCertPath; // CA cert (PEM)
+        private boolean trustServerCertificate = false; // MySQL: skip CA verification
+
+        public boolean isVerifyMode() {
+        return mode != null && mode.startsWith("verify");
+        }
+
+        public boolean needsClientCert() {
+        return certPath != null && !certPath.isBlank();
+        }
+        }
+
+        @Data
+        public static class Pool {
+        private int maximumPoolSize = 10;
+        private int minimumIdle = 2;
+        private long connectionTimeout = 30000L;
+        private long idleTimeout = 600000L;
+        private long maxLifetime = 1800000L;
+        private long keepaliveTime = 60000L;
+        private String connectionTestQuery = "SELECT 1";
+        }
+
+        @Data
+        public static class Flyway {
+        private boolean enabled = true;
+        private boolean baselineOnMigrate = true;
+        private String baselineVersion = "0";
+        private String table = "flyway_schema_history";
+        private boolean validateOnMigrate = true;
+        private boolean outOfOrder = false;
+        private List<String> locations;
+            }
+            }

@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 use indexmap::IndexMap;
 use regex::Regex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::cli::{AnalyzeFormat, ImportArgs};

@@ -1,0 +1,74 @@
+package {{package}}.config;
+
+import {{package}}.common.builder.JdbcUrlBuilder;
+import {{package}}.common.enums.DatabaseType;
+import {{package}}.config.properties.DatabaseProperties;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import java.util.Properties;
+
+/**
+* Factory that creates fully configured HikariCP pools for any node (master or slave).
+*
+* <p>PostgreSQL SSL is applied via driver properties; MySQL SSL is embedded in the JDBC URL.
+    */
+    public final class HikariDataSourceFactory {
+
+    private HikariDataSourceFactory() {}
+
+    public static HikariDataSource create(
+    String poolName,
+    DatabaseType type,
+    DatabaseProperties.NodeProperties node,
+    DatabaseProperties.Ssl ssl,
+    DatabaseProperties.Pool pool) {
+
+    HikariConfig config = new HikariConfig();
+    config.setPoolName(poolName);
+    config.setJdbcUrl(JdbcUrlBuilder.build(type, node, ssl));
+    config.setUsername(node.getUsername());
+    config.setPassword(node.getPassword());
+    config.setDriverClassName(JdbcUrlBuilder.driverClassName(type));
+
+    applyPoolConfig(config, pool);
+
+    if (type == DatabaseType.POSTGRES) {
+    applyPostgresSsl(config, ssl);
+    }
+
+    return new HikariDataSource(config);
+    }
+
+    private static void applyPoolConfig(HikariConfig config, DatabaseProperties.Pool pool) {
+    if (pool == null) return;
+    config.setMaximumPoolSize(pool.getMaximumPoolSize());
+    config.setMinimumIdle(pool.getMinimumIdle());
+    config.setConnectionTimeout(pool.getConnectionTimeout());
+    config.setIdleTimeout(pool.getIdleTimeout());
+    config.setMaxLifetime(pool.getMaxLifetime());
+    config.setKeepaliveTime(pool.getKeepaliveTime());
+    }
+
+    private static void applyPostgresSsl(HikariConfig config, DatabaseProperties.Ssl ssl) {
+    Properties driverProps = new Properties();
+
+    if (ssl == null || !ssl.isEnabled()) {
+    driverProps.setProperty("ssl", "false");
+    config.setDataSourceProperties(driverProps);
+    return;
+    }
+
+    driverProps.setProperty("ssl", "true");
+    driverProps.setProperty("sslmode", ssl.getMode());
+    setIfPresent(driverProps, "sslrootcert", ssl.getRootCertPath());
+    setIfPresent(driverProps, "sslcert", ssl.getCertPath());
+    setIfPresent(driverProps, "sslkey", ssl.getKeyPath());
+    config.setDataSourceProperties(driverProps);
+    }
+
+    private static void setIfPresent(Properties props, String key, String value) {
+    if (value != null && !value.isBlank()) {
+    props.setProperty(key, value);
+    }
+    }
+    }

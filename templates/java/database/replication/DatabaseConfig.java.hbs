@@ -1,0 +1,91 @@
+package {{package}}.config;
+
+import {{package}}.common.enums.DataSourceType;
+import {{package}}.config.properties.DatabaseProperties;
+import {{package}}.config.routing.LoadBalanceRoutingDataSource;
+import com.zaxxer.hikari.HikariDataSource;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import javax.sql.DataSource;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.flyway.FlywayMigrationInitializer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.context.annotation.Primary;
+
+/**
+* DataSource configuration for master-slave replication.
+*
+* <p>The primary {@link DataSource} is a {@link LoadBalanceRoutingDataSource} that
+    * routes read-only transactions to slaves (round-robin) and all writes to master.
+    * Flyway is always wired directly to {@code masterDataSource} to prevent migrations
+    * from running on a replica.
+    *
+    *
+<p>SSL is shared across all nodes and controlled by {@code app.datasource.ssl.*}.
+    * SSL is enabled by default ({@code enabled: true}).
+    */
+    @Configuration
+    @EnableConfigurationProperties(DatabaseProperties.class)
+    public class DatabaseConfig {
+
+    private final DatabaseProperties props;
+
+    public DatabaseConfig(DatabaseProperties props) {
+    this.props = props;
+    }
+
+    // ─── Master ───────────────────────────────────────────────────────────────
+
+    @Bean
+    public HikariDataSource masterDataSource() {
+    return HikariDataSourceFactory.create(
+    "pool-master", props.getType(), props.getMaster(), props.getSsl(), props.getPool());
+    }
+
+    // ─── Slaves ───────────────────────────────────────────────────────────────
+
+    @Bean
+    public List<HikariDataSource> slaveDataSources() {
+        List<DatabaseProperties.NodeProperties> slaves = props.getSlaves();
+            if (slaves == null || slaves.isEmpty()) return List.of();
+
+            List<HikariDataSource> pools = new ArrayList<>();
+                    for (int i = 0; i < slaves.size(); i++) { pools.add(HikariDataSourceFactory.create( "pool-slave-" +
+                        i, props.getType(), slaves.get(i), props.getSsl(), props.getPool())); } return pools; } // ───
+                        Routing DataSource — @Primary so everything injects this by default ── @Bean @Primary public
+                        DataSource dataSource(HikariDataSource masterDataSource, List<HikariDataSource>
+                        slaveDataSources) {
+                        Map<Object, Object> targets = new HashMap<>();
+                                List<String> slaveKeys = new ArrayList<>();
+
+                                        targets.put(DataSourceType.MASTER, masterDataSource);
+
+                                        for (int i = 0; i < slaveDataSources.size(); i++) { String key="slave-" + i;
+                                            targets.put(key, slaveDataSources.get(i)); slaveKeys.add(key); }
+                                            LoadBalanceRoutingDataSource routing=new
+                                            LoadBalanceRoutingDataSource(slaveKeys);
+                                            routing.setTargetDataSources(targets);
+                                            routing.setDefaultTargetDataSource(masterDataSource);
+                                            routing.afterPropertiesSet(); return routing; } // ─── Flyway — always wired
+                                            to masterDataSource, never through the router ── @Bean
+                                            @ConditionalOnProperty(prefix="app.datasource.flyway" , name="enabled" ,
+                                            havingValue="true" , matchIfMissing=true) public Flyway
+                                            flyway(HikariDataSource masterDataSource) { DatabaseProperties.Flyway
+                                            fw=props.getFlyway(); FluentConfiguration configure=Flyway.configure()
+                                            .dataSource(masterDataSource) .baselineOnMigrate(fw.isBaselineOnMigrate())
+                                            .baselineVersion(fw.getBaselineVersion()) .table(fw.getTable())
+                                            .validateOnMigrate(fw.isValidateOnMigrate()) .outOfOrder(fw.isOutOfOrder());
+                                            if (fw.getLocations() !=null && !fw.getLocations().isEmpty()) {
+                                            configure.locations(fw.getLocations().toArray(String[]::new)); } return
+                                            configure.load(); } @Bean @DependsOn("flyway")
+                                            @ConditionalOnProperty(prefix="app.datasource.flyway" , name="enabled" ,
+                                            havingValue="true" ) public FlywayMigrationInitializer
+                                            flywayInitializer(Flyway flyway) { return new
+                                            FlywayMigrationInitializer(flyway, Flyway::migrate); } }

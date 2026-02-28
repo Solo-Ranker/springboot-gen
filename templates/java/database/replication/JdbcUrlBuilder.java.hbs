@@ -1,0 +1,55 @@
+package {{package}}.common.builder;
+
+import {{package}}.common.enums.DatabaseType;
+import {{package}}.config.properties.DatabaseProperties;
+import lombok.experimental.UtilityClass;
+
+/**
+* Builds JDBC URLs for the replication setup (master and slave nodes).
+*/
+@UtilityClass
+public class JdbcUrlBuilder {
+
+public static String build(DatabaseType type, DatabaseProperties.NodeProperties node, DatabaseProperties.Ssl ssl) {
+return switch (type) {
+case MYSQL -> buildMysqlUrl(node, ssl);
+case POSTGRES -> buildPostgresUrl(node);
+};
+}
+
+public static String driverClassName(DatabaseType type) {
+return switch (type) {
+case MYSQL -> "com.mysql.cj.jdbc.Driver";
+case POSTGRES -> "org.postgresql.Driver";
+};
+}
+
+// ─── PostgreSQL ───────────────────────────────────────────────────────────
+// SSL is applied via HikariCP datasource properties, not the URL.
+private static String buildPostgresUrl(DatabaseProperties.NodeProperties node) {
+return "jdbc:postgresql://%s:%d/%s".formatted(node.getHost(), node.getPort(), node.getDatabase());
+}
+
+// ─── MySQL ────────────────────────────────────────────────────────────────
+private static String buildMysqlUrl(DatabaseProperties.NodeProperties node, DatabaseProperties.Ssl ssl) {
+String base = "jdbc:mysql://%s:%d/%s?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
+.formatted(node.getHost(), node.getPort(), node.getDatabase());
+
+if (ssl == null || !ssl.isEnabled()) {
+return base + "&useSSL=false&allowPublicKeyRetrieval=true";
+}
+
+StringBuilder sb = new StringBuilder(base)
+.append("&useSSL=true")
+.append("&requireSSL=")
+.append("require".equals(ssl.getMode()) || ssl.isVerifyMode());
+
+if (ssl.isVerifyMode() && ssl.getRootCertPath() != null) {
+sb.append("&trustCertificateKeyStoreUrl=file:").append(ssl.getRootCertPath());
+}
+if (ssl.needsClientCert()) {
+sb.append("&clientCertificateKeyStoreUrl=file:").append(ssl.getCertPath());
+}
+return sb.toString();
+}
+}

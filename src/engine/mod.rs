@@ -255,7 +255,10 @@ impl GenerationEngine {
 
         // Extra dirs for certain features
         let has_any_ssl = features.iter().any(|f| {
-            matches!(f.key, "redis-ssl" | "redis-ssl-sentinel" | "postgres-ssl" | "mysql-ssl")
+            matches!(
+                f.key,
+                "redis-ssl" | "redis-ssl-sentinel" | "postgres-ssl" | "mysql-ssl"
+            )
         });
         let mut all_dirs = dirs;
         if has_any_ssl {

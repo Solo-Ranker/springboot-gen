@@ -1,0 +1,62 @@
+package {{package}}.common.builder;
+
+import {{package}}.config.properties.DatabaseProperties;
+import lombok.experimental.UtilityClass;
+
+/**
+* Builds JDBC URLs for PostgreSQL and MySQL, embedding SSL parameters where required.
+*
+* <p>PostgreSQL: SSL is passed via HikariCP datasource properties, not the URL.
+    *
+<p>MySQL: SSL parameters are embedded directly in the JDBC URL.
+    */
+    @UtilityClass
+    public class JdbcUrlBuilder {
+
+    public static String build(DatabaseProperties props) {
+    return switch (props.getType().toLowerCase()) {
+    case "mysql" -> buildMysqlUrl(props);
+    default -> buildPostgresUrl(props);
+    };
+    }
+
+    public static String driverClassName(String type) {
+    return switch (type.toLowerCase()) {
+    case "mysql" -> "com.mysql.cj.jdbc.Driver";
+    default -> "org.postgresql.Driver";
+    };
+    }
+
+    // ─── PostgreSQL ───────────────────────────────────────────────────────────
+    // SSL is handled entirely via datasource properties — cleaner and avoids
+    // double-encoding issues with the PG JDBC driver.
+    private static String buildPostgresUrl(DatabaseProperties props) {
+    return "jdbc:postgresql://%s:%d/%s".formatted(
+    props.getHost(), props.getPort(), props.getDatabase());
+    }
+
+    // ─── MySQL ────────────────────────────────────────────────────────────────
+    // MySQL Connector/J prefers SSL config inline in the URL.
+    private static String buildMysqlUrl(DatabaseProperties props) {
+    String base = "jdbc:mysql://%s:%d/%s?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
+    .formatted(props.getHost(), props.getPort(), props.getDatabase());
+
+    DatabaseProperties.Ssl ssl = props.getSsl();
+    if (ssl == null || !ssl.isEnabled()) {
+    return base + "&useSSL=false&allowPublicKeyRetrieval=true";
+    }
+
+    StringBuilder sb = new StringBuilder(base)
+    .append("&useSSL=true")
+    .append("&requireSSL=")
+    .append("require".equals(ssl.getMode()) || ssl.isVerifyMode());
+
+    if (ssl.isVerifyMode() && ssl.getRootCertPath() != null) {
+    sb.append("&trustCertificateKeyStoreUrl=file:").append(ssl.getRootCertPath());
+    }
+    if (ssl.needsClientCert()) {
+    sb.append("&clientCertificateKeyStoreUrl=file:").append(ssl.getCertPath());
+    }
+    return sb.toString();
+    }
+    }

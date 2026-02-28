@@ -1,0 +1,56 @@
+package {{package}}.config.routing;
+
+import {{package}}.common.enums.DataSourceType;
+import java.lang.reflect.Method;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+// ----------------------------------------------------------------------------------------------------
+// Intercepts @Transactional methods and sets the routing context BEFORE the transaction opens —
+// critical because the connection is acquired at transaction start, not at query time.
+//
+// @Order(-1) ensures this runs BEFORE @Transactional advice (Order 0 default)
+// so the context is set before Spring grabs the connection from the pool.
+// Get this wrong and routing silently never fires.
+//
+// readOnly = true -> SLAVE
+// readOnly = false -> MASTER
+// ----------------------------------------------------------------------------------------------------
+@Aspect
+@Component
+@Order(-1)
+public class TransactionRoutingAspect {
+
+@Around("@annotation(org.springframework.transaction.annotation.Transactional)"
++ " || @within(org.springframework.transaction.annotation.Transactional)")
+public Object route(ProceedingJoinPoint pjp) throws Throwable {
+Transactional transactional = resolveAnnotation(pjp);
+DataSourceType type =
+(transactional != null && transactional.readOnly())
+? DataSourceType.SLAVE
+: DataSourceType.MASTER;
+
+RoutingDataSourceContext.setDataSourceType(type);
+try {
+return pjp.proceed();
+} finally {
+RoutingDataSourceContext.clear();
+}
+}
+
+private Transactional resolveAnnotation(ProceedingJoinPoint pjp) {
+try {
+Method method = ((MethodSignature) pjp.getSignature()).getMethod();
+// Method-level takes priority over class-level
+Transactional ann = method.getAnnotation(Transactional.class);
+return ann != null ? ann : pjp.getTarget().getClass().getAnnotation(Transactional.class);
+} catch (Exception ex) {
+return null;
+}
+}
+}

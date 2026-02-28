@@ -1,0 +1,40 @@
+package {{package}}.config.routing;
+
+import {{package}}.common.enums.DataSourceType;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
+
+// ----------------------------------------------------------------------------------------------------
+// Routes to MASTER or round-robins across N SLAVES.
+//
+// Target map keys:
+// DataSourceType.MASTER -> master pool
+// "slave-0", "slave-1" -> individual slave pools
+//
+// Falls back to master if no slaves are registered.
+// ----------------------------------------------------------------------------------------------------
+@Slf4j
+public class LoadBalanceRoutingDataSource extends AbstractRoutingDataSource {
+
+private final List<String> slaveKeys;
+    private final AtomicInteger slaveIndex = new AtomicInteger(0);
+
+    public LoadBalanceRoutingDataSource(List<String> slaveKeys) {
+        this.slaveKeys = slaveKeys;
+        }
+
+        @Override
+        protected Object determineCurrentLookupKey() {
+        if (RoutingDataSourceContext.getDataSourceType() == DataSourceType.SLAVE
+        && !slaveKeys.isEmpty()) {
+        // abs() guards against AtomicInteger overflowing into negatives
+        int index = Math.abs(slaveIndex.getAndIncrement() % slaveKeys.size());
+        log.debug("Routing to SLAVE datasource: {}", slaveKeys.get(index));
+        return slaveKeys.get(index);
+        }
+        log.debug("Routing to MASTER datasource");
+        return DataSourceType.MASTER;
+        }
+        }

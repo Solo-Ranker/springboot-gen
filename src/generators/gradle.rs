@@ -1,6 +1,6 @@
 use anyhow::Result;
 use handlebars::Handlebars;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::path::Path;
 
 use crate::config::ProjectConfig;

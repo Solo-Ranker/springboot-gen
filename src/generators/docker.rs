@@ -218,7 +218,10 @@ impl<'a> DockerGenerator<'a> {
 
         // Write cert generation script (make it executable)
         let script_path = ssl_dir.join("generate-certs.sh");
-        std::fs::write(&script_path, self.hb.render("redis-ssl/generate-certs.sh", &ctx)?)?;
+        std::fs::write(
+            &script_path,
+            self.hb.render("redis-ssl/generate-certs.sh", &ctx)?,
+        )?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -240,12 +243,14 @@ impl<'a> DockerGenerator<'a> {
 
             std::fs::write(
                 ssl_dir.join("docker-compose.yml"),
-                self.hb.render("redis-ssl/docker-compose-redis-ssl-sentinel.yml", &ctx)?,
+                self.hb
+                    .render("redis-ssl/docker-compose-redis-ssl-sentinel.yml", &ctx)?,
             )?;
         } else {
             std::fs::write(
                 ssl_dir.join("docker-compose.yml"),
-                self.hb.render("redis-ssl/docker-compose-redis-ssl.yml", &ctx)?,
+                self.hb
+                    .render("redis-ssl/docker-compose-redis-ssl.yml", &ctx)?,
             )?;
         }
 

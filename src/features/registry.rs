@@ -745,12 +745,6 @@ pub fn all_features() -> Vec<FeatureSpec> {
     ]
 }
 
-// ── Lookup / resolution ───────────────────────────────────────────────────────
-
-pub fn find_feature(key: &str) -> Option<FeatureSpec> {
-    all_features().into_iter().find(|f| f.key == key)
-}
-
 pub fn resolve_features(keys: &[String]) -> anyhow::Result<Vec<FeatureSpec>> {
     let all = all_features();
     let mut resolved: IndexMap<String, FeatureSpec> = IndexMap::new();

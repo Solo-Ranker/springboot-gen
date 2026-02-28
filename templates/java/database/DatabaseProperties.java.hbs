@@ -1,0 +1,66 @@
+package {{package}}.config.properties;
+
+import java.util.List;
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+/**
+* Database connection properties bound from {@code app.datasource.*}.
+*
+* <p>Supports both PostgreSQL and MySQL (controlled by {@code type}).
+    * SSL is enabled by default. Flyway locations can be customised per project.
+    */
+    @Data
+    @ConfigurationProperties(prefix = "app.datasource")
+    public class DatabaseProperties {
+
+    private String type = "postgres"; // postgres | mysql
+    private String host = "localhost";
+    private int port = 5432;
+    private String database;
+    private String username;
+    private String password;
+    private Ssl ssl = new Ssl();
+    private Pool pool = new Pool();
+    private Flyway flyway = new Flyway();
+
+    @Data
+    public static class Ssl {
+    private boolean enabled = true;
+    private String mode = "require"; // disable | allow | prefer | require | verify-ca | verify-full
+    private String certPath; // client cert (PEM)
+    private String keyPath; // client key (PEM)
+    private String rootCertPath; // CA cert (PEM)
+    private boolean trustServerCertificate = false; // MySQL: skip CA verification
+
+    public boolean isVerifyMode() {
+    return mode != null && mode.startsWith("verify");
+    }
+
+    public boolean needsClientCert() {
+    return certPath != null && !certPath.isBlank();
+    }
+    }
+
+    @Data
+    public static class Pool {
+    private int maximumPoolSize = 10;
+    private int minimumIdle = 2;
+    private long connectionTimeout = 30000L;
+    private long idleTimeout = 600000L;
+    private long maxLifetime = 1800000L;
+    private long keepaliveTime = 60000L;
+    private String connectionTestQuery = "SELECT 1";
+    }
+
+    @Data
+    public static class Flyway {
+    private boolean enabled = true;
+    private boolean baselineOnMigrate = true;
+    private String baselineVersion = "0";
+    private String table = "flyway_schema_history";
+    private boolean validateOnMigrate = true;
+    private boolean outOfOrder = false;
+    private List<String> locations;
+        }
+        }

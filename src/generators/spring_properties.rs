@@ -1,6 +1,6 @@
 use anyhow::Result;
 use handlebars::Handlebars;
-use serde_json::{json, Map, Value};
+use serde_json::json;
 use std::path::Path;
 
 use crate::config::ProjectConfig;
@@ -59,14 +59,26 @@ impl<'a> PropertiesGenerator<'a> {
         let k = &self.config.kafka;
         let sec = &self.config.security;
 
+        let has_redis = self.has("redis")
+            || self.has("redis-ssl")
+            || self.has("redis-sentinel")
+            || self.has("redis-ssl-sentinel")
+            || self.has("redis-cluster");
+
+        let has_db_standalone = self.has("postgres")
+            || self.has("mysql")
+            || self.has("postgres-ssl")
+            || self.has("mysql-ssl");
+
+        let db_is_mysql = self.has("mysql") || self.has("mysql-ssl");
+
+        let has_db_replication = self.has("db-replication");
+
         let data = json!({
             "artifact": crate::engine::to_artifact_id(&self.config.project.name),
             "project": { "name": &self.config.project.name },
 
-            "has_redis":           self.has("redis") || self.has("redis-ssl") || self.has("redis-sentinel") || self.has("redis-ssl-sentinel"),
-            "redis_ssl":           self.has("redis-ssl"),
-            "redis_sentinel":      self.has("redis-sentinel"),
-            "redis_ssl_sentinel":  self.has("redis-ssl-sentinel"),
+            "has_redis":          has_redis,
             "redis": {
                 "host":            r.host,
                 "port":            r.port,
@@ -76,6 +88,9 @@ impl<'a> PropertiesGenerator<'a> {
                 "sentinel": {
                     "master": r.sentinel.master,
                     "nodes":  r.sentinel.nodes.join(","),
+                },
+                "cluster": {
+                    "nodes": r.cluster_nodes.join(","),
                 }
             },
 
@@ -87,11 +102,18 @@ impl<'a> PropertiesGenerator<'a> {
                 "listener_concurrency": k.listener_concurrency,
             },
 
+            "has_db_standalone":  has_db_standalone,
+            "db_is_mysql":        db_is_mysql,
+            "has_db_replication": has_db_replication,
+
+            // Keep legacy postgres/mysql flags for any other templates that may still use them
             "has_postgres":     self.has("postgres"),
             "has_postgres_ssl": self.has("postgres-ssl"),
             "has_mysql":        self.has("mysql"),
             "has_mysql_ssl":    self.has("mysql-ssl"),
+
             "db": {
+                "type":          if db_is_mysql { "mysql" } else { "postgres" },
                 "host":          d.host,
                 "port":          d.port,
                 "name":          d.name,
