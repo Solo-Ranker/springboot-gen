@@ -102,6 +102,7 @@ impl<'a> GradleGenerator<'a> {
         let mut deps: Vec<String> = Vec::new();
 
         // Core
+        deps.push("// Core Dependencies".to_string());
         deps.push(self.dep(
             kotlin_dsl,
             "implementation",
@@ -136,22 +137,32 @@ impl<'a> GradleGenerator<'a> {
 
         // Feature deps
         for feature in self.features {
+            if feature.maven_deps.is_empty() {
+                continue;
+            }
+            let mut feature_deps = Vec::new();
             for dep in feature.maven_deps {
-                let scope = match dep.scope {
+                let scope = match dep.scope.as_deref() {
                     Some("test") => "testImplementation",
                     Some("provided") => "compileOnly",
                     _ => "implementation",
                 };
-                let d = self.dep(kotlin_dsl, scope, dep.group_id, dep.artifact_id);
+                let d = self.dep(kotlin_dsl, scope, &dep.group_id, &dep.artifact_id);
                 if !deps.contains(&d) {
-                    deps.push(d);
+                    feature_deps.push(d);
                 }
+            }
+            if !feature_deps.is_empty() {
+                deps.push(String::new());
+                deps.push(format!("// {} Dependencies", feature.name));
+                deps.extend(feature_deps);
             }
         }
 
         // Feature-specific test deps
+        let mut test_deps = Vec::new();
         if self.has("kafka") {
-            deps.push(self.dep(
+            test_deps.push(self.dep(
                 kotlin_dsl,
                 "testImplementation",
                 "org.springframework.kafka",
@@ -159,12 +170,17 @@ impl<'a> GradleGenerator<'a> {
             ));
         }
         if self.has("postgres") {
-            deps.push(self.dep(
+            test_deps.push(self.dep(
                 kotlin_dsl,
                 "testImplementation",
                 "org.testcontainers",
                 "postgresql",
             ));
+        }
+        if !test_deps.is_empty() {
+            deps.push(String::new());
+            deps.push("// Additional Test Dependencies".to_string());
+            deps.extend(test_deps);
         }
 
         deps

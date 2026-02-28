@@ -723,7 +723,7 @@ pub fn all_features() -> Vec<FeatureSpec> {
         feature!(
             key:         "docker",
             name:        "Docker",
-            description: "Multi-stage Dockerfile and docker-compose.yml",
+            description: "Multi-stage Dockerfile and feature docker configs",
             deps:      [],
             requires:  [],
             services:  [],

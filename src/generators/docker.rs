@@ -17,8 +17,6 @@ macro_rules! tpl {
 
 const TEMPLATES: &[(&str, &str)] = &[
     tpl!("Dockerfile"),
-    tpl!("docker-compose.yml"),
-    tpl!("docker-compose.override.yml"),
     tpl!("component-compose.yml"),
     tpl!(".dockerignore"),
     // Redis SSL
@@ -60,20 +58,6 @@ impl<'a> DockerGenerator<'a> {
         )?;
 
         std::fs::write(
-            out.join("docker-compose.yml"),
-            self.hb
-                .render("docker-compose.yml", &self.compose_context(&artifact))?,
-        )?;
-
-        std::fs::write(
-            out.join("docker-compose.override.yml"),
-            self.hb.render(
-                "docker-compose.override.yml",
-                &json!({ "artifact": artifact }),
-            )?,
-        )?;
-
-        std::fs::write(
             out.join(".dockerignore"),
             self.hb.render(".dockerignore", &json!({}))?,
         )?;
@@ -109,40 +93,6 @@ impl<'a> DockerGenerator<'a> {
             "java_version": self.config.project.java_version,
             "base_image":   self.config.docker.base_image,
             "port":         self.config.docker.app_port,
-        })
-    }
-
-    fn compose_context(&self, artifact: &str) -> Value {
-        let port = self.config.docker.app_port;
-
-        let infra_services: Vec<Value> = self
-            .features
-            .iter()
-            .flat_map(|f| f.docker_services.iter().map(|s| self.service_value(s)))
-            .collect();
-
-        let app_depends_on: Vec<&str> = self
-            .features
-            .iter()
-            .flat_map(|f| f.docker_services.iter().map(|s| s.name))
-            .collect();
-
-        let app_env: Vec<String> = self
-            .features
-            .iter()
-            .flat_map(|f| f.env_vars.iter().map(|(k, _)| format!("{k}: ${{{k}}}")))
-            .collect();
-
-        let volumes =
-            self.collect_volumes(self.features.iter().flat_map(|f| f.docker_services.iter()));
-
-        json!({
-            "artifact":       artifact,
-            "port":           port,
-            "infra_services": infra_services,
-            "app_depends_on": app_depends_on,
-            "app_env":        app_env,
-            "volumes":        volumes,
         })
     }
 

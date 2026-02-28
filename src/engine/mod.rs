@@ -97,7 +97,7 @@ impl GenerationEngine {
         pb.inc(1);
 
         if features.iter().any(|f| f.key == "docker") {
-            pb.set_message("Generating Dockerfile + docker-compose.yml");
+            pb.set_message("Generating Dockerfile + feature docker configs");
             DockerGenerator::new(&config, &features)?.generate(&out_dir)?;
         }
         pb.inc(1);
@@ -191,7 +191,7 @@ impl GenerationEngine {
         PropertiesGenerator::new(&config, &features)?.generate(&args.path)?;
         pb.inc(1);
 
-        pb.set_message("Updating docker-compose.yml");
+        pb.set_message("Updating feature docker configs");
         if features.iter().any(|f| f.key == "docker") {
             DockerGenerator::new(&config, &features)?.generate(&args.path)?;
         }
@@ -366,7 +366,7 @@ impl GenerationEngine {
             "src/main/resources/application.yml",
             "src/main/resources/application-dev.yml",
             ".env.example",
-            "docker-compose.yml",
+            "docker/",
             "Dockerfile",
         ];
         for f in &files {
@@ -406,8 +406,7 @@ impl GenerationEngine {
         }
 
         println!("\n  {}", style("Next steps:").bold());
-        println!("    cd {}", name);
-        println!("    docker-compose up -d     # Start infrastructure");
+        println!("    # Start specific infra: docker compose -f docker/<feature>/docker-compose.yml up -d");
 
         match config.project.build_tool.as_str() {
             "gradle" => {

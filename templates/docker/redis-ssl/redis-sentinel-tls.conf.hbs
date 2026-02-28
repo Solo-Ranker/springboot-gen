@@ -18,19 +18,16 @@ tls-auth-clients yes
 tls-replication yes
 
 # Monitor the Redis master
-# sentinel monitor <name>
-    <ip>
-        <port>
-            <quorum>
-                sentinel monitor mymaster redis-master 6380 2
+# sentinel monitor <name> <ip> <port> <quorum>
+sentinel monitor mymaster redis-master 6380 2
 
-                # Auth passwords (if set on Redis nodes)
-                # sentinel auth-pass mymaster <password>
+# Auth passwords (if set on Redis nodes)
+# sentinel auth-pass mymaster <password>
 
-                    # Timeouts
-                    sentinel down-after-milliseconds mymaster 5000
-                    sentinel failover-timeout mymaster 60000
-                    sentinel parallel-syncs mymaster 1
+# Timeouts
+sentinel down-after-milliseconds mymaster 5000
+sentinel failover-timeout mymaster 60000
+sentinel parallel-syncs mymaster 1
 
-                    # Announce TLS port to other sentinels / clients
-                    # sentinel announce-tls-port 26379
+# Announce TLS port to other sentinels / clients
+# sentinel announce-tls-port 26379
