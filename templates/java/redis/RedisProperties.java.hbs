@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.redis")
 public class RedisProperties {
 private String mode = "standalone"; // standalone | sentinel | cluster
-private boolean ssl = true;
+private boolean ssl = false;
 private Standalone standalone = new Standalone();
 private Sentinel sentinel = new Sentinel();
 private Cluster cluster = new Cluster();

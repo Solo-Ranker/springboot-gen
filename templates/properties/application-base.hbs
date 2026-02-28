@@ -174,7 +174,7 @@ app:
   {{#if has_redis}}
   redis:
     mode: ${REDIS_MODE:standalone}   # standalone | sentinel | cluster
-    ssl: true                        # set to false if no TLS
+    ssl: false                       # set to true if using TLS
     standalone:
       host: ${REDIS_HOST:{{redis.host}}}
       port: ${REDIS_PORT:{{redis.port}}}
@@ -207,7 +207,7 @@ app:
     username: ${DB_USER:{{db.username}}}
     password: ${DB_PASSWORD:}
     ssl:
-      enabled: true                        # set to false to disable
+      enabled: false                       # set to true to enable
       mode: ${DB_SSL_MODE:require}         # disable|allow|prefer|require|verify-ca|verify-full
       root-cert-path: ${DB_SSL_ROOT_CERT:}
       cert-path: ${DB_SSL_CERT:}
@@ -247,7 +247,7 @@ app:
         username: ${DB_SLAVE_USER:{{db.username}}}
         password: ${DB_SLAVE_PASSWORD:}
     ssl:
-      enabled: true
+      enabled: false
       mode: ${DB_SSL_MODE:require}
       root-cert-path: ${DB_SSL_ROOT_CERT:}
       cert-path: ${DB_SSL_CERT:}

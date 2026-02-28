@@ -602,11 +602,7 @@ impl ProjectConfig {
     pub fn from_new_args(args: &crate::cli::NewArgs) -> Self {
         use crate::cli::{BuildTool, GradleDsl};
 
-        let redis_mode = if !args.redis_stack.is_empty() {
-            args.redis_stack.join(",")
-        } else {
-            "standalone".to_string()
-        };
+        let redis_mode = "standalone".to_string();
 
         let build_tool = match &args.build_tool {
             BuildTool::Maven => "maven",

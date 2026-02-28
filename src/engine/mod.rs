@@ -232,7 +232,7 @@ impl GenerationEngine {
         out: &Path,
         package_path: &str,
         artifact: &str,
-        features: &[FeatureSpec],
+        _features: &[FeatureSpec],
     ) -> Result<()> {
         let src_main = out.join("src/main/java").join(package_path).join(artifact);
 
@@ -253,19 +253,7 @@ impl GenerationEngine {
             out.join("src/main/resources/templates"),
         ];
 
-        // Extra dirs for certain features
-        let has_any_ssl = features.iter().any(|f| {
-            matches!(
-                f.key,
-                "redis-ssl" | "redis-ssl-sentinel" | "postgres-ssl" | "mysql-ssl"
-            )
-        });
-        let mut all_dirs = dirs;
-        if has_any_ssl {
-            all_dirs.push(out.join("src/main/resources/ssl"));
-        }
-
-        for dir in &all_dirs {
+        for dir in &dirs {
             std::fs::create_dir_all(dir)
                 .with_context(|| format!("Failed to create dir: {}", dir.display()))?;
         }

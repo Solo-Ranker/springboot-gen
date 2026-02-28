@@ -74,23 +74,10 @@ pub struct NewArgs {
     #[arg(short, long, value_delimiter = ',', value_name = "FEATURE")]
     pub features: Vec<String>,
 
-    /// Redis stack options (comma-separated): ssl, sentinel, cluster
-    /// Example: --redis-stack ssl or --redis-stack ssl,sentinel
-    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
-    pub redis_stack: Vec<String>,
-
     /// Kafka stack options (comma-separated): sasl, ssl
     /// Example: --kafka-stack sasl
     #[arg(long, value_delimiter = ',', value_name = "OPTION")]
     pub kafka_stack: Vec<String>,
-
-    /// PostgreSQL stack options (comma-separated): ssl, replication
-    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
-    pub postgres_stack: Vec<String>,
-
-    /// MySQL stack options (comma-separated): ssl
-    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
-    pub mysql_stack: Vec<String>,
 
     /// Build tool (maven or gradle)
     #[arg(long, value_enum, default_value = "maven")]
@@ -397,10 +384,7 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         boot_version: boot_versions[boot_idx].to_string(),
         java_version: java_versions[java_idx].parse()?,
         features: vec![],
-        redis_stack: vec![],
         kafka_stack: vec![],
-        postgres_stack: vec![],
-        mysql_stack: vec![],
         build_tool,
         gradle_dsl,
         skip_format: false,
@@ -415,7 +399,7 @@ fn prompt_database(
     config: &mut ProjectConfig,
     args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::{Confirm, MultiSelect, Select};
+    use dialoguer::{Confirm, Select};
 
     let db_options = vec!["None", "PostgreSQL", "MySQL", "MongoDB"];
     let db_idx = Select::with_theme(theme)
@@ -436,43 +420,23 @@ fn prompt_database(
     };
     args.features.push(db_feature.to_string());
 
-    // Common DB options
     if db_feature == "postgres" || db_feature == "mysql" {
+        let arch_options = vec!["Standalone", "Replication (Master-Slave)"];
+        let arch_idx = Select::with_theme(theme)
+            .with_prompt("Database Architecture")
+            .items(&arch_options)
+            .default(0)
+            .interact()?;
+
+        if arch_idx == 1 {
+            args.features.push("db-replication".to_string());
+        }
+
         let flyway = Confirm::with_theme(theme)
             .with_prompt("Enable Flyway migrations?")
             .default(true)
             .interact()?;
         config.database.flyway_enabled = flyway;
-
-        // Stack options for PostgreSQL/MySQL
-        if db_feature == "postgres" {
-            let stack_options = vec![
-                ("ssl", "Enable SSL/TLS connections"),
-                ("replication", "Master-Slave replication"),
-            ];
-            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
-
-            let selections = MultiSelect::with_theme(theme)
-                .with_prompt("PostgreSQL Stack Options (optional)")
-                .items(&labels)
-                .interact()?;
-
-            for idx in selections {
-                args.postgres_stack.push(stack_options[idx].0.to_string());
-            }
-        } else if db_feature == "mysql" {
-            let stack_options = vec![("ssl", "Enable SSL/TLS connections")];
-            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
-
-            let selections = MultiSelect::with_theme(theme)
-                .with_prompt("MySQL Stack Options (optional)")
-                .items(&labels)
-                .interact()?;
-
-            for idx in selections {
-                args.mysql_stack.push(stack_options[idx].0.to_string());
-            }
-        }
     }
 
     Ok(())
@@ -494,13 +458,9 @@ fn prompt_cache(
     }
 
     let modes = vec![
-        ("redis", "Standalone (no TLS, no HA)"),
-        ("redis-ssl", "SSL/TLS encryption only"),
-        ("redis-sentinel", "Sentinel HA (no TLS)"),
-        (
-            "redis-ssl-sentinel",
-            "SSL/TLS + Sentinel HA  [production-grade]",
-        ),
+        ("redis", "Standalone"),
+        ("redis-sentinel", "Sentinel HA"),
+        ("redis-cluster", "Cluster"),
     ];
     let labels: Vec<&str> = modes.iter().map(|(_, l)| *l).collect();
 
@@ -512,9 +472,8 @@ fn prompt_cache(
 
     let (feature_key, redis_mode) = match idx {
         0 => ("redis", "standalone"),
-        1 => ("redis-ssl", "ssl"),
-        2 => ("redis-sentinel", "sentinel"),
-        _ => ("redis-ssl-sentinel", "ssl-sentinel"),
+        1 => ("redis-sentinel", "sentinel"),
+        _ => ("redis-cluster", "cluster"),
     };
 
     args.features.push(feature_key.to_string());

@@ -26,7 +26,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
     @Data
     public static class Ssl {
-    private boolean enabled = true;
+    private boolean enabled = false;
     private String mode = "require"; // disable | allow | prefer | require | verify-ca | verify-full
     private String certPath; // client cert (PEM)
     private String keyPath; // client key (PEM)

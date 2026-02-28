@@ -19,12 +19,6 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("Dockerfile"),
     tpl!("component-compose.yml"),
     tpl!(".dockerignore"),
-    // Redis SSL
-    tpl!("redis-ssl/generate-certs.sh"),
-    tpl!("redis-ssl/redis-tls.conf"),
-    tpl!("redis-ssl/redis-sentinel-tls.conf"),
-    tpl!("redis-ssl/docker-compose-redis-ssl.yml"),
-    tpl!("redis-ssl/docker-compose-redis-ssl-sentinel.yml"),
 ];
 
 pub struct DockerGenerator<'a> {
@@ -74,11 +68,6 @@ impl<'a> DockerGenerator<'a> {
                     self.hb.render("component-compose.yml", &ctx)?,
                 )?;
             }
-        }
-
-        // Redis SSL folder — cert generation script + TLS configs
-        if self.has("redis-ssl") || self.has("redis-ssl-sentinel") {
-            self.generate_redis_ssl_folder(out, &artifact)?;
         }
 
         Ok(())
@@ -155,58 +144,5 @@ impl<'a> DockerGenerator<'a> {
 
     fn has(&self, key: &str) -> bool {
         self.features.iter().any(|f| f.key == key)
-    }
-
-    /// Emit docker/redis-ssl/ with cert generation script, TLS config files,
-    /// and the appropriate Docker Compose (standalone SSL or SSL+Sentinel).
-    fn generate_redis_ssl_folder(&self, out: &Path, artifact: &str) -> Result<()> {
-        let ssl_dir = out.join("docker").join("redis-ssl");
-        let certs_dir = ssl_dir.join("certs");
-        std::fs::create_dir_all(&certs_dir)?;
-
-        let ctx = json!({ "artifact": artifact });
-
-        // Write cert generation script (make it executable)
-        let script_path = ssl_dir.join("generate-certs.sh");
-        std::fs::write(
-            &script_path,
-            self.hb.render("redis-ssl/generate-certs.sh", &ctx)?,
-        )?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))?;
-        }
-
-        // Redis TLS server config
-        std::fs::write(
-            ssl_dir.join("redis.conf"),
-            self.hb.render("redis-ssl/redis-tls.conf", &ctx)?,
-        )?;
-
-        // Sentinel TLS config (only needed for ssl-sentinel variant)
-        if self.has("redis-ssl-sentinel") {
-            std::fs::write(
-                ssl_dir.join("sentinel.conf"),
-                self.hb.render("redis-ssl/redis-sentinel-tls.conf", &ctx)?,
-            )?;
-
-            std::fs::write(
-                ssl_dir.join("docker-compose.yml"),
-                self.hb
-                    .render("redis-ssl/docker-compose-redis-ssl-sentinel.yml", &ctx)?,
-            )?;
-        } else {
-            std::fs::write(
-                ssl_dir.join("docker-compose.yml"),
-                self.hb
-                    .render("redis-ssl/docker-compose-redis-ssl.yml", &ctx)?,
-            )?;
-        }
-
-        // .gitkeep so the certs/ dir is tracked by git (actual certs are gitignored)
-        std::fs::write(certs_dir.join(".gitkeep"), "").ok();
-
-        Ok(())
     }
 }
