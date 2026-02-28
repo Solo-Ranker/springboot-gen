@@ -48,7 +48,7 @@ pub struct ProjectMeta {
     pub gradle_dsl: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisConfig {
     /// standalone | ssl | sentinel | cluster
     #[serde(default = "default_redis_mode")]
@@ -90,7 +90,25 @@ pub struct RedisConfig {
     pub pool_min_idle: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for RedisConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_redis_mode(),
+            host: default_redis_host(),
+            port: default_redis_port(),
+            password: None,
+            database: default_redis_db(),
+            ssl: RedisSslConfig::default(),
+            sentinel: RedisSentinelConfig::default(),
+            cluster_nodes: default_cluster_nodes(),
+            pool_max_active: default_pool_max_active(),
+            pool_max_idle: default_pool_max_idle(),
+            pool_min_idle: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisSslConfig {
     /// Path to the JKS/P12 keystore file (or classpath: reference)
     #[serde(default)]
@@ -111,7 +129,19 @@ pub struct RedisSslConfig {
     pub verify_hostname: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for RedisSslConfig {
+    fn default() -> Self {
+        Self {
+            keystore_location: String::new(),
+            keystore_password: String::new(),
+            truststore_location: String::new(),
+            truststore_password: String::new(),
+            verify_hostname: default_true(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisSentinelConfig {
     #[serde(default = "default_sentinel_master")]
     pub master: String,
@@ -124,7 +154,17 @@ pub struct RedisSentinelConfig {
     pub sentinel_password: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for RedisSentinelConfig {
+    fn default() -> Self {
+        Self {
+            master: default_sentinel_master(),
+            nodes: default_sentinel_nodes(),
+            sentinel_password: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KafkaConfig {
     #[serde(default = "default_kafka_bootstrap")]
     pub bootstrap_servers: String,
@@ -145,6 +185,19 @@ pub struct KafkaConfig {
     pub sasl: Option<KafkaSaslConfig>,
 }
 
+impl Default for KafkaConfig {
+    fn default() -> Self {
+        Self {
+            bootstrap_servers: default_kafka_bootstrap(),
+            consumer_group_id: default_consumer_group(),
+            auto_offset_reset: default_offset_reset(),
+            listener_concurrency: default_listener_concurrency(),
+            idempotent_producer: default_true(),
+            sasl: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KafkaSaslConfig {
     pub mechanism: String,
@@ -153,7 +206,7 @@ pub struct KafkaSaslConfig {
     pub security_protocol: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RabbitMqConfig {
     #[serde(default = "default_rabbitmq_host")]
     pub host: String,
@@ -168,7 +221,18 @@ pub struct RabbitMqConfig {
     pub password: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for RabbitMqConfig {
+    fn default() -> Self {
+        Self {
+            host: default_rabbitmq_host(),
+            port: default_rabbitmq_port(),
+            username: default_rabbitmq_user(),
+            password: default_rabbitmq_password(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IbmMqConfig {
     #[serde(default = "default_ibmmq_qm")]
     pub queue_manager: String,
@@ -189,7 +253,20 @@ pub struct IbmMqConfig {
     pub password: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for IbmMqConfig {
+    fn default() -> Self {
+        Self {
+            queue_manager: default_ibmmq_qm(),
+            channel: default_ibmmq_channel(),
+            host: default_ibmmq_host(),
+            port: default_ibmmq_port(),
+            username: default_ibmmq_user(),
+            password: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
     #[serde(default = "default_db_host")]
     pub host: String,
@@ -217,7 +294,22 @@ pub struct DatabaseConfig {
     pub ssl: DatabaseSslConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for DatabaseConfig {
+    fn default() -> Self {
+        Self {
+            host: default_db_host(),
+            port: default_db_port(),
+            name: default_db_name(),
+            username: default_db_user(),
+            password: String::new(),
+            pool_max_size: default_pool_max_db(),
+            flyway_enabled: default_true(),
+            ssl: DatabaseSslConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSslConfig {
     /// Enable SSL for the database connection
     #[serde(default)]
@@ -247,7 +339,21 @@ pub struct DatabaseSslConfig {
     pub verify_server_cert: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for DatabaseSslConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: default_db_ssl_mode(),
+            keystore_location: String::new(),
+            keystore_password: default_ssl_password(),
+            truststore_location: String::new(),
+            truststore_password: default_ssl_password(),
+            verify_server_cert: default_true(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
     #[serde(default)]
     pub jwt_secret: Option<String>,
@@ -268,7 +374,20 @@ pub struct SecurityConfig {
     pub csrf_disabled: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            jwt_secret: None,
+            access_token_expiry_ms: default_access_token_ms(),
+            refresh_token_expiry_ms: default_refresh_token_ms(),
+            oauth2_issuer_uri: None,
+            cors_allowed_origins: Vec::new(),
+            csrf_disabled: default_true(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DockerConfig {
     #[serde(default = "default_registry")]
     pub registry: String,
@@ -278,6 +397,16 @@ pub struct DockerConfig {
 
     #[serde(default = "default_app_port")]
     pub app_port: u16,
+}
+
+impl Default for DockerConfig {
+    fn default() -> Self {
+        Self {
+            registry: default_registry(),
+            base_image: default_base_image(),
+            app_port: default_app_port(),
+        }
+    }
 }
 
 // ── Default value helpers ────────────────────────────────────────────────────
