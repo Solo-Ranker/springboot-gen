@@ -1,0 +1,49 @@
+package {{package}}.common.builder;
+
+import {{package}}.config.properties.DatabaseProperties;
+
+public class JdbcUrlBuilder {
+
+    public static String build(DatabaseProperties props) {
+        return switch (props.getType()) {
+            case POSTGRES -> buildPostgresUrl(props);
+            case MYSQL -> buildMysqlUrl(props);
+        };
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // PostgreSQL
+    // ----------------------------------------------------------------------------------------------------
+    // SSL is handled entirely via datasource properties (not url param) when using the PG JDBC driver
+    // cleaner and avoids double-encoding issues.
+    private static String buildPostgresUrl(DatabaseProperties props) {
+        return "jdbc:postgresql://%s:%d/%s".formatted(props.getHost(), props.getPort(), props.getDatabase());
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // MySQL
+    // ----------------------------------------------------------------------------------------------------
+    // MySQL JDBC prefers SSL config inline in the url
+    private static String buildMysqlUrl(DatabaseProperties props) {
+        String base = "jdbc:mysql://%s:%d/%s?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
+                .formatted(props.getHost(), props.getPort(), props.getDatabase());
+
+        if (props.getSsl() == null || !props.getSsl().isEnabled()) {
+            return base + "&useSSL=false&allowPublicKeyRetrieval=true";
+        }
+
+        DatabaseProperties.Ssl ssl = props.getSsl();
+        StringBuilder sb = new StringBuilder(base)
+                .append("&useSSL=true")
+                .append("&requireSSL=")
+                .append(ssl.getMode().equals("require") || ssl.isVerifyMode());
+
+        if (ssl.isVerifyMode() && ssl.getRootCertPath() != null) {
+            sb.append("&trustCertificateKeyStoreUrl=file:").append(ssl.getRootCertPath());
+        }
+        if (ssl.needsClientCert()) {
+            sb.append("&clientCertificateKeyStoreUrl=file:").append(ssl.getCertPath());
+        }
+        return sb.toString();
+    }
+}

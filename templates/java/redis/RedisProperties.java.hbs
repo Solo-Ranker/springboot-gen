@@ -1,0 +1,50 @@
+package {{package}}.config.properties;
+
+import java.util.ArrayList;
+import java.util.List;
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@Data
+@ConfigurationProperties(prefix = "app.redis")
+public class RedisProperties {
+private String mode = "standalone"; // standalone | sentinel | cluster
+private boolean ssl = false;
+private Standalone standalone = new Standalone();
+private Sentinel sentinel = new Sentinel();
+private Cluster cluster = new Cluster();
+private Pool pool = new Pool();
+
+@Data
+public static class Standalone {
+private String host = "localhost";
+private int port = 6379;
+private String password;
+private int database = 0;
+}
+
+@Data
+public static class Sentinel {
+private String master = "mymaster";
+private List<String> nodes = new ArrayList<>(); // host:port
+        private String password;
+        private String sentinelPassword;
+        private int database = 0;
+        }
+
+        @Data
+        public static class Cluster {
+        private List<String> nodes = new ArrayList<>(); // host:port
+                private String password;
+                private int maxRedirects = 3;
+                }
+
+                @Data
+                public static class Pool {
+                private int maxActive = 8;
+                private int maxIdle = 8;
+                private int minIdle = 2;
+                private long maxWait = 2000L; // ms
+                private long timeBetweenEvictionRuns = 30000L; // ms
+                }
+                }

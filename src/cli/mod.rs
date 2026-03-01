@@ -60,7 +60,7 @@ pub struct NewArgs {
     pub group: String,
 
     /// Spring Boot version
-    #[arg(long, default_value = "3.2.5")]
+    #[arg(long, default_value = "3.5.11")]
     pub boot_version: String,
 
     /// Java version
@@ -74,23 +74,10 @@ pub struct NewArgs {
     #[arg(short, long, value_delimiter = ',', value_name = "FEATURE")]
     pub features: Vec<String>,
 
-    /// Redis stack options (comma-separated): ssl, sentinel, cluster
-    /// Example: --redis-stack ssl or --redis-stack ssl,sentinel
-    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
-    pub redis_stack: Vec<String>,
-
     /// Kafka stack options (comma-separated): sasl, ssl
     /// Example: --kafka-stack sasl
     #[arg(long, value_delimiter = ',', value_name = "OPTION")]
     pub kafka_stack: Vec<String>,
-
-    /// PostgreSQL stack options (comma-separated): ssl, replication
-    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
-    pub postgres_stack: Vec<String>,
-
-    /// MySQL stack options (comma-separated): ssl
-    #[arg(long, value_delimiter = ',', value_name = "OPTION")]
-    pub mysql_stack: Vec<String>,
 
     /// Build tool (maven or gradle)
     #[arg(long, value_enum, default_value = "maven")]
@@ -348,14 +335,14 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         .default("com.example".to_string())
         .interact_text()?;
 
-    let boot_versions = vec!["3.2.5", "3.3.0", "3.1.12"];
+    let boot_versions = vec!["3.5.11", "3.4.3", "3.3.9"];
     let boot_idx = Select::with_theme(theme)
         .with_prompt("Spring Boot version")
         .items(&boot_versions)
         .default(0)
         .interact()?;
 
-    let java_versions = vec!["21", "17", "11"];
+    let java_versions = vec!["21", "17 (Not Recommended: Sample code are written with Java 21 syntax - will support that in the future)", "11 (Not Recommended: Sample code are written with Java 21 syntax - will support that in the future)"];
     let java_idx = Select::with_theme(theme)
         .with_prompt("Java version")
         .items(&java_versions)
@@ -397,10 +384,7 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         boot_version: boot_versions[boot_idx].to_string(),
         java_version: java_versions[java_idx].parse()?,
         features: vec![],
-        redis_stack: vec![],
         kafka_stack: vec![],
-        postgres_stack: vec![],
-        mysql_stack: vec![],
         build_tool,
         gradle_dsl,
         skip_format: false,
@@ -415,9 +399,9 @@ fn prompt_database(
     config: &mut ProjectConfig,
     args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::{Confirm, MultiSelect, Select};
+    use dialoguer::{Confirm, Select};
 
-    let db_options = vec!["None", "PostgreSQL", "MySQL", "MongoDB"];
+    let db_options = vec!["None", "PostgreSQL", "MySQL"];
     let db_idx = Select::with_theme(theme)
         .with_prompt("Database")
         .items(&db_options)
@@ -431,67 +415,29 @@ fn prompt_database(
     let db_feature = match db_idx {
         1 => "postgres",
         2 => "mysql",
-        3 => "mongodb",
         _ => return Ok(()),
     };
     args.features.push(db_feature.to_string());
 
-    // Common DB options
-    if db_feature == "postgres" || db_feature == "mysql" {
-        let flyway = Confirm::with_theme(theme)
-            .with_prompt("Enable Flyway migrations?")
-            .default(true)
-            .interact()?;
-        config.database.flyway_enabled = flyway;
+    let arch_options = vec!["Standalone", "Replication (Master-Slave)"];
+    let arch_idx = Select::with_theme(theme)
+        .with_prompt("Database Architecture")
+        .items(&arch_options)
+        .default(0)
+        .interact()?;
 
-        // Stack options for PostgreSQL/MySQL
-        if db_feature == "postgres" {
-            let stack_options = vec![
-                ("ssl", "Enable SSL/TLS connections"),
-                ("replication", "Master-Slave replication"),
-            ];
-            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+    let arch_feature = match arch_idx {
+        0 => "database-standalone",
+        1 => "database-replication",
+        _ => unreachable!(),
+    };
+    args.features.push(arch_feature.to_string());
 
-            let selections = MultiSelect::with_theme(theme)
-                .with_prompt("PostgreSQL Stack Options (optional)")
-                .items(&labels)
-                .interact()?;
-
-            for idx in selections {
-                args.postgres_stack.push(stack_options[idx].0.to_string());
-            }
-        } else if db_feature == "mysql" {
-            let stack_options = vec![("ssl", "Enable SSL/TLS connections")];
-            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
-
-            let selections = MultiSelect::with_theme(theme)
-                .with_prompt("MySQL Stack Options (optional)")
-                .items(&labels)
-                .interact()?;
-
-            for idx in selections {
-                args.mysql_stack.push(stack_options[idx].0.to_string());
-            }
-        }
-    }
-
-    // We assume docker service is generated if feature is enabled,
-    // unless we want to ask specifically "Generate Docker service for DB?"
-    // For now, let's keep it implicit with the feature, but we could add a specific prompt if needed.
-    // The user request said: "user can selected what kind of database ... do they need docker"
-    // So let's ask.
-
-    // Note: The current features/registry logic generates docker service AUTOMATICALLY if the feature is present.
-    // To support "feature present but NO docker service", we would need to modify the generators or registry logic.
-    // OR we just don't add the feature? No, we need the feature for Java code.
-    // We can add a flag in ExtraProperties or Config to disable docker for specific component?
-    // Or we just assume if they select the DB, they probably want the docker container for local dev?
-    // Let's assume yes for now as modifying the registry logic to conditionally exclude docker is complex.
-    // Wait, the user specifically asked "do they need docker".
-    // If they say NO, we should NOT generate the service in docker-compose.
-    // We can implement this by adding a properties "docker.exclude" list in config?
-    // Or simpler: just let it generate.
-    // Let's stick to generating it by default as per current architecture.
+    let flyway = Confirm::with_theme(theme)
+        .with_prompt("Enable Flyway migrations?")
+        .default(true)
+        .interact()?;
+    config.database.flyway_enabled = flyway;
 
     Ok(())
 }
@@ -501,7 +447,7 @@ fn prompt_cache(
     config: &mut ProjectConfig,
     args: &mut NewArgs,
 ) -> Result<()> {
-    use dialoguer::{Confirm, MultiSelect};
+    use dialoguer::{Confirm, Select};
 
     if !Confirm::with_theme(theme)
         .with_prompt("Add Redis Cache?")
@@ -511,31 +457,27 @@ fn prompt_cache(
         return Ok(());
     }
 
-    args.features.push("redis".to_string());
-
-    // Stack options for Redis
-    let stack_options = vec![
-        ("ssl", "Enable SSL/TLS encryption"),
-        ("sentinel", "High Availability with Sentinel"),
-        ("cluster", "Redis Cluster mode"),
+    let modes = vec![
+        ("redis", "Standalone"),
+        ("redis-sentinel", "Sentinel HA"),
+        ("redis-cluster", "Cluster"),
     ];
-    let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+    let labels: Vec<&str> = modes.iter().map(|(_, l)| *l).collect();
 
-    let selections = MultiSelect::with_theme(theme)
-        .with_prompt("Redis Stack Options (optional)")
+    let idx = Select::with_theme(theme)
+        .with_prompt("Redis mode")
         .items(&labels)
+        .default(0)
         .interact()?;
 
-    for idx in selections {
-        args.redis_stack.push(stack_options[idx].0.to_string());
-    }
+    let (feature_key, redis_mode) = match idx {
+        0 => ("redis", "standalone"),
+        1 => ("redis-sentinel", "sentinel"),
+        _ => ("redis-cluster", "cluster"),
+    };
 
-    // Update config based on selections
-    if !args.redis_stack.is_empty() {
-        config.redis.mode = args.redis_stack.join(",");
-    } else {
-        config.redis.mode = "standalone".to_string();
-    }
+    args.features.push(feature_key.to_string());
+    config.redis.mode = redis_mode.to_string();
 
     Ok(())
 }

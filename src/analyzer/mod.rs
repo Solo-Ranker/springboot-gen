@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 use indexmap::IndexMap;
 use regex::Regex;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::cli::{AnalyzeFormat, ImportArgs};
@@ -163,7 +163,10 @@ impl ProjectAnalyzer {
         if features.iter().any(|f| f.key == "docker") {
             crate::generators::docker::DockerGenerator::new(&config, &features)?
                 .generate(&args.output)?;
-            println!("  {} docker-compose.yml + Dockerfile", style("✓").green());
+            println!(
+                "  {} feature docker folders + Dockerfile",
+                style("✓").green()
+            );
         }
 
         if features.iter().any(|f| f.key == "kubernetes") {
@@ -447,11 +450,11 @@ impl ProjectAnalyzer {
         }
 
         // ── Docker check ─────────────────────────────────────────────────────
-        if root.join("Dockerfile").exists() || root.join("docker-compose.yml").exists() {
+        if root.join("Dockerfile").exists() || root.join("docker").exists() {
             features.push(DetectedFeature {
                 key: "docker".to_string(),
                 confidence: Confidence::High,
-                source: "Dockerfile/docker-compose.yml".to_string(),
+                source: "Dockerfile/docker folder".to_string(),
             });
         } else {
             recommendations.push("Add 'docker' feature for containerization support.".to_string());
@@ -710,8 +713,10 @@ impl ProjectAnalyzer {
             "  2. Copy {} to your project root",
             out.join(".env.example").display()
         );
-        if out.join("docker-compose.yml").exists() {
-            println!("  3. Review and copy docker-compose.yml to your project root");
+        if out.join("docker").exists() {
+            println!("  3. Review and copy docker folder to your project root");
+        } else {
+            println!("  3. Review generated code");
         }
         println!("  4. Run: springboot-gen add <feature> --path <your-project>");
 

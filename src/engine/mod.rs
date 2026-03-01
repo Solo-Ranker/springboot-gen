@@ -22,7 +22,11 @@ macro_rules! tpl {
     };
 }
 
-const MISC_TEMPLATES: &[(&str, &str)] = &[tpl!("gitignore"), tpl!("flyway-init.sql")];
+const MISC_TEMPLATES: &[(&str, &str)] = &[
+    tpl!("gitignore"),
+    tpl!("postgres/V1_0_0__CREATE_TODOS_TABLE.sql"),
+    tpl!("mysql/V1_0_0__CREATE_TODOS_TABLE.sql"),
+];
 
 pub struct GenerationEngine {
     hb: Handlebars<'static>,
@@ -97,7 +101,7 @@ impl GenerationEngine {
         pb.inc(1);
 
         if features.iter().any(|f| f.key == "docker") {
-            pb.set_message("Generating Dockerfile + docker-compose.yml");
+            pb.set_message("Generating Dockerfile + feature docker configs");
             DockerGenerator::new(&config, &features)?.generate(&out_dir)?;
         }
         pb.inc(1);
@@ -117,7 +121,7 @@ impl GenerationEngine {
             .any(|f| f.key == "postgres" || f.key == "mysql")
         {
             pb.set_message("Generating Flyway migration");
-            self.generate_flyway_init(&out_dir)?;
+            self.generate_flyway_migration(&out_dir, &features)?;
         }
         pb.inc(1);
 
@@ -191,7 +195,7 @@ impl GenerationEngine {
         PropertiesGenerator::new(&config, &features)?.generate(&args.path)?;
         pb.inc(1);
 
-        pb.set_message("Updating docker-compose.yml");
+        pb.set_message("Updating feature docker configs");
         if features.iter().any(|f| f.key == "docker") {
             DockerGenerator::new(&config, &features)?.generate(&args.path)?;
         }
@@ -232,7 +236,7 @@ impl GenerationEngine {
         out: &Path,
         package_path: &str,
         artifact: &str,
-        features: &[FeatureSpec],
+        _features: &[FeatureSpec],
     ) -> Result<()> {
         let src_main = out.join("src/main/java").join(package_path).join(artifact);
 
@@ -253,14 +257,7 @@ impl GenerationEngine {
             out.join("src/main/resources/templates"),
         ];
 
-        // Extra dirs for certain features
-        let has_ssl = features.iter().any(|f| f.key == "redis-ssl");
-        let mut all_dirs = dirs;
-        if has_ssl {
-            all_dirs.push(out.join("src/main/resources/ssl"));
-        }
-
-        for dir in &all_dirs {
+        for dir in &dirs {
             std::fs::create_dir_all(dir)
                 .with_context(|| format!("Failed to create dir: {}", dir.display()))?;
         }
@@ -274,12 +271,23 @@ impl GenerationEngine {
         Ok(())
     }
 
-    fn generate_flyway_init(&self, out: &Path) -> Result<()> {
-        let migration_file = out.join("src/main/resources/db/migration/V1__init_schema.sql");
-        if !migration_file.exists() {
-            let content = self.hb.render("flyway-init.sql", &serde_json::json!({}))?;
-            std::fs::write(migration_file, content)?;
+    fn generate_flyway_migration(&self, out: &Path, features: &[FeatureSpec]) -> Result<()> {
+        let migration_file =
+            out.join("src/main/resources/db/migration/V1_0_0__CREATE_TODOS_TABLE.sql");
+
+        if migration_file.exists() {
+            return Ok(());
         }
+
+        let template = if features.iter().any(|f| f.key == "mysql") {
+            "mysql/V1_0_0__CREATE_TODOS_TABLE.sql"
+        } else {
+            "postgres/V1_0_0__CREATE_TODOS_TABLE.sql"
+        };
+
+        let content = self.hb.render(template, &serde_json::json!({}))?;
+        std::fs::write(migration_file, content)?;
+
         Ok(())
     }
 
@@ -299,7 +307,7 @@ impl GenerationEngine {
                 (gradlew.to_string(), vec!["spotlessApply"])
             }
             _ => {
-                let mvnw = if cfg!(windows) { "mvnw.cmd" } else { "./mvnw" };
+                let mvnw = "mvn";
                 (mvnw.to_string(), vec!["spotless:apply"])
             }
         };
@@ -361,7 +369,7 @@ impl GenerationEngine {
             "src/main/resources/application.yml",
             "src/main/resources/application-dev.yml",
             ".env.example",
-            "docker-compose.yml",
+            "docker/",
             "Dockerfile",
         ];
         for f in &files {
@@ -401,15 +409,14 @@ impl GenerationEngine {
         }
 
         println!("\n  {}", style("Next steps:").bold());
-        println!("    cd {}", name);
-        println!("    docker-compose up -d     # Start infrastructure");
+        println!("    # Start specific infra: docker compose -f docker/<feature>/docker-compose.yml up -d");
 
         match config.project.build_tool.as_str() {
             "gradle" => {
                 println!("    ./gradlew bootRun        # Start the app");
             }
             _ => {
-                println!("    ./mvnw spring-boot:run   # Start the app");
+                println!("    mvn spring-boot:run   # Start the app");
             }
         }
 

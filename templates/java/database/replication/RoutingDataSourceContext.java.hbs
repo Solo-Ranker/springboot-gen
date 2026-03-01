@@ -1,0 +1,40 @@
+package {{package}}.config.routing;
+
+import {{package}}.common.enums.DataSourceType;
+
+// ----------------------------------------------------------------------------------------------------
+// ThreadLocal context that tells the routing datasource whether the current
+// operation should go to MASTER (writes) or SLAVE (reads)
+// ----------------------------------------------------------------------------------------------------
+// Never touch this directly in the business code - the TransactionRoutingAspect handles it
+// automatically via @Transactional(readOnly). Only use forceMaster() for the post-write read pattern
+// where replication lag would bite you.
+public final class RoutingDataSourceContext {
+
+    private static final ThreadLocal<DataSourceType> CONTEXT = ThreadLocal.withInitial(() -> DataSourceType.MASTER);
+
+    private RoutingDataSourceContext() {}
+
+    public static void setDataSourceType(DataSourceType type) {
+        CONTEXT.set(type);
+    }
+
+    public static DataSourceType getDataSourceType() {
+        return CONTEXT.get();
+    }
+
+    public static void forceMaster() {
+        CONTEXT.set(DataSourceType.MASTER);
+    }
+
+    public static void forceSlave() {
+        CONTEXT.set(DataSourceType.SLAVE);
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // Always called in finally by the aspect - don't forget this in manual usage
+    // ----------------------------------------------------------------------------------------------------
+    public static void clear() {
+        CONTEXT.remove();
+    }
+}

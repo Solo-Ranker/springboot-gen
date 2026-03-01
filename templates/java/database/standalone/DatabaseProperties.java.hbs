@@ -1,0 +1,60 @@
+package {{package}}.config.properties;
+
+import {{package}}.common.enums.DatabaseType;
+import java.util.List;
+import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@Data
+@ConfigurationProperties(prefix = "app.datasource")
+public class DatabaseProperties {
+    private DatabaseType type;
+    private String host;
+    private int port;
+    private String database;
+    private String username;
+    private String password;
+    private Ssl ssl = new Ssl();
+    private Pool pool = new Pool();
+    private Flyway flyway = new Flyway();
+
+    @Data
+    public static class Ssl {
+        private boolean enabled;
+        private String mode; // disable | allow | prefer | require | verify-ca | verify-full
+        private String certPath; // client cert  (PEM)
+        private String keyPath; // client key   (PEM)
+        private String rootCertPath; // CA cert       (PEM)
+        private boolean trustServerCertificate; // MySQL: skip CA verification
+
+        public boolean isVerifyMode() {
+            return mode != null && mode.startsWith("verify");
+        }
+
+        public boolean needsClientCert() {
+            return certPath != null && !certPath.isBlank();
+        }
+    }
+
+    @Data
+    public static class Pool {
+        private int maximumPoolSize;
+        private int minimumIdle;
+        private long connectionTimeout;
+        private long idleTimeout;
+        private long maxLifetime;
+        private long keepaliveTime;
+        private String connectionTestQuery;
+    }
+
+    @Data
+    public static class Flyway {
+        private boolean enabled;
+        private boolean baselineOnMigrate;
+        private String baselineVersion;
+        private String table;
+        private boolean validateOnMigrate;
+        private boolean outOfOrder;
+        private List<String> locations;
+    }
+}

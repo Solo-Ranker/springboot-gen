@@ -1,86 +1,182 @@
 package {{package}}.config;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import {{package}}.config.properties.RedisProperties;
+import io.lettuce.core.api.StatefulConnection;
+import java.time.Duration;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisClusterConfiguration;
+import org.springframework.data.redis.connection.RedisNode;
+import org.springframework.data.redis.connection.RedisPassword;
+import org.springframework.data.redis.connection.RedisSentinelConfiguration;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettucePoolingClientConfiguration;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
-
-import java.time.Duration;
+import org.springframework.util.StringUtils;
 
 /**
-* Redis configuration — Standalone mode.
-* Connection pooling via Lettuce + Apache Commons Pool2.
-*/
-@Configuration
-public class RedisConfig {
+* Redis configuration — Unified mode-switch (standalone | sentinel | cluster).
+*
+* <p>Mode is controlled by {@code app.redis.mode}. SSL/TLS is enabled by default
+    * via {@code app.redis.ssl = true}. The pool is tuned via {@code app.redis.pool.*}.
+    *
+    *
+<p>To disable peer-verification in strict production environments, remove
+    * {@code .disablePeerVerification()} from {@link #buildClientConfiguration()}.
+    */
+    @Slf4j
+    @Configuration
+    @EnableConfigurationProperties(RedisProperties.class)
+    public class RedisConfig {
 
-@Value("${spring.data.redis.host}")
-private String host;
+    private final RedisProperties props;
 
-@Value("${spring.data.redis.port}")
-private int port;
-
-@Value("${spring.data.redis.password:}")
-private String password;
-
-@Value("${spring.data.redis.database:0}")
-private int database;
-
-@Bean
-public RedisConnectionFactory redisConnectionFactory() {
-var standaloneConfig = new RedisStandaloneConfiguration(host, port);
-if (password != null && !password.isBlank()) {
-standaloneConfig.setPassword(password);
-}
-standaloneConfig.setDatabase(database);
-
-var poolConfig = new GenericObjectPoolConfig<Object>();
-    poolConfig.setMaxTotal(8);
-    poolConfig.setMaxIdle(8);
-    poolConfig.setMinIdle(0);
-    poolConfig.setTestOnBorrow(true);
-    poolConfig.setTestWhileIdle(true);
-
-    var lettucePooling = LettucePoolingClientConfiguration.builder()
-    .commandTimeout(Duration.ofMillis(2000))
-    .poolConfig(poolConfig)
-    .build();
-
-    return new LettuceConnectionFactory(standaloneConfig, lettucePooling);
+    public RedisConfig(RedisProperties props) {
+    this.props = props;
     }
 
+    // ─── Connection Factory ───────────────────────────────────────────────────
+
     @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
-        var template = new RedisTemplate<String, Object>();
-            template.setConnectionFactory(factory);
+    public LettuceConnectionFactory redisConnectionFactory() {
+    LettuceClientConfiguration clientConfig = buildClientConfiguration();
+    return switch (props.getMode().toLowerCase()) {
+    case "sentinel" -> {
+    log.info("Configuring Redis in SENTINEL mode");
+    yield new LettuceConnectionFactory(sentinelConfig(), clientConfig);
+    }
+    case "cluster" -> {
+    log.info("Configuring Redis in CLUSTER mode");
+    yield new LettuceConnectionFactory(clusterConfig(), clientConfig);
+    }
+    default -> {
+    log.info("Configuring Redis in STANDALONE mode");
+    yield new LettuceConnectionFactory(standaloneConfig(), clientConfig);
+    }
+    };
+    }
 
-            var objectMapper = new ObjectMapper();
-            objectMapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-            objectMapper.activateDefaultTyping(
-            LaissezFaireSubTypeValidator.instance,
-            ObjectMapper.DefaultTyping.NON_FINAL
-            );
+    // ─── Mode Configurations ──────────────────────────────────────────────────
 
-            var jsonSerializer = new Jackson2JsonRedisSerializer<>(objectMapper, Object.class);
-                var stringSerializer = new StringRedisSerializer();
+    private RedisStandaloneConfiguration standaloneConfig() {
+    RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+    config.setHostName(props.getStandalone().getHost());
+    config.setPort(props.getStandalone().getPort());
+    config.setDatabase(props.getStandalone().getDatabase());
+    if (StringUtils.hasText(props.getStandalone().getPassword())) {
+    config.setPassword(RedisPassword.of(props.getStandalone().getPassword()));
+    }
+    return config;
+    }
 
-                template.setKeySerializer(stringSerializer);
-                template.setHashKeySerializer(stringSerializer);
-                template.setValueSerializer(jsonSerializer);
-                template.setHashValueSerializer(jsonSerializer);
-                template.afterPropertiesSet();
+    private RedisSentinelConfiguration sentinelConfig() {
+    RedisSentinelConfiguration config = new RedisSentinelConfiguration();
+    config.setMaster(props.getSentinel().getMaster());
+    config.setDatabase(props.getSentinel().getDatabase());
+    for (String node : props.getSentinel().getNodes()) {
+    String[] parts = node.split(":");
+    config.addSentinel(new RedisNode(parts[0], Integer.parseInt(parts[1])));
+    }
+    if (StringUtils.hasText(props.getSentinel().getPassword())) {
+    config.setPassword(RedisPassword.of(props.getSentinel().getPassword()));
+    }
+    if (StringUtils.hasText(props.getSentinel().getSentinelPassword())) {
+    config.setSentinelPassword(RedisPassword.of(props.getSentinel().getSentinelPassword()));
+    }
+    return config;
+    }
 
-                return template;
-                }
-                }
+    private RedisClusterConfiguration clusterConfig() {
+    RedisClusterConfiguration config =
+    new RedisClusterConfiguration(props.getCluster().getNodes());
+    config.setMaxRedirects(props.getCluster().getMaxRedirects());
+    if (StringUtils.hasText(props.getCluster().getPassword())) {
+    config.setPassword(RedisPassword.of(props.getCluster().getPassword()));
+    }
+    return config;
+    }
+
+    // ─── Lettuce Client + SSL + Pool ──────────────────────────────────────────
+
+    private LettuceClientConfiguration buildClientConfiguration() {
+    GenericObjectPoolConfig<StatefulConnection<?, ?>> poolConfig = buildPoolConfig();
+        LettucePoolingClientConfiguration.LettucePoolingClientConfigurationBuilder builder =
+        LettucePoolingClientConfiguration.builder()
+        .poolConfig(poolConfig)
+        .commandTimeout(Duration.ofSeconds(5))
+        .shutdownTimeout(Duration.ofMillis(200));
+        if (props.isSsl()) {
+        // Remove .disablePeerVerification() for strict mTLS in production
+        builder.useSsl().disablePeerVerification();
+        }
+        return builder.build();
+        }
+
+        private GenericObjectPoolConfig<StatefulConnection<?, ?>> buildPoolConfig() {
+            RedisProperties.Pool pool = props.getPool();
+            GenericObjectPoolConfig<StatefulConnection<?, ?>> config = new GenericObjectPoolConfig<>();
+                    config.setMaxTotal(pool.getMaxActive());
+                    config.setMaxIdle(pool.getMaxIdle());
+                    config.setMinIdle(pool.getMinIdle());
+                    config.setMaxWait(Duration.ofMillis(pool.getMaxWait()));
+                    config.setTimeBetweenEvictionRuns(Duration.ofMillis(pool.getTimeBetweenEvictionRuns()));
+                    config.setTestOnBorrow(true);
+                    config.setTestWhileIdle(true);
+                    config.setJmxEnabled(false);
+                    return config;
+                    }
+
+                    // ─── ObjectMapper ─────────────────────────────────────────────────────────
+
+                    private ObjectMapper buildRedisObjectMapper() {
+                    ObjectMapper mapper = new ObjectMapper();
+                    mapper.activateDefaultTyping(
+                    BasicPolymorphicTypeValidator.builder()
+                    .allowIfSubType(Object.class)
+                    .build(),
+                    ObjectMapper.DefaultTyping.NON_FINAL,
+                    JsonTypeInfo.As.PROPERTY);
+                    mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                    mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+                    mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+                    return mapper;
+                    }
+
+                    // ─── Templates ────────────────────────────────────────────────────────────
+
+                    @Bean
+                    public RedisTemplate<String, Object> redisTemplate(LettuceConnectionFactory factory) {
+                        RedisTemplate<String, Object> template = new RedisTemplate<>();
+                                template.setConnectionFactory(factory);
+                                StringRedisSerializer stringSerializer = new StringRedisSerializer();
+                                GenericJackson2JsonRedisSerializer jsonSerializer =
+                                new GenericJackson2JsonRedisSerializer(buildRedisObjectMapper());
+                                template.setKeySerializer(stringSerializer);
+                                template.setHashKeySerializer(stringSerializer);
+                                template.setValueSerializer(jsonSerializer);
+                                template.setHashValueSerializer(jsonSerializer);
+                                template.setEnableTransactionSupport(false);
+                                template.afterPropertiesSet();
+                                return template;
+                                }
+
+                                @Bean
+                                public StringRedisTemplate stringRedisTemplate(LettuceConnectionFactory factory) {
+                                return new StringRedisTemplate(factory);
+                                }
+                                }

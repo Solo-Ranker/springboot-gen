@@ -1,0 +1,39 @@
+package {{package}}.common.specification;
+
+import {{package}}.dto.TodoFilter;
+import {{package}}.model.TodoEntity;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
+import org.springframework.data.jpa.domain.Specification;
+
+public final class TodoSpecification {
+
+  public static Specification<TodoEntity> from(TodoFilter filter) {
+    return (root, query, cb) -> {
+      var predicates = new ArrayList<Predicate>();
+
+      if (filter.getSearch() != null && !filter.getSearch().isBlank()) {
+        predicates.add(
+            cb.like(cb.lower(root.get("title")), "%" + filter.getSearch().toLowerCase() + "%"));
+      }
+
+      if (filter.getStatus() != null) {
+        predicates.add(cb.equal(root.get("status"), filter.getStatus()));
+      }
+
+      if (filter.getPriority() != null) {
+        predicates.add(cb.equal(root.get("priority"), filter.getPriority()));
+      }
+
+      if (filter.getDueAfter() != null) {
+        predicates.add(cb.greaterThanOrEqualTo(root.get("dueDate"), filter.getDueAfter()));
+      }
+
+      if (filter.getDueBefore() != null) {
+        predicates.add(cb.lessThanOrEqualTo(root.get("dueDate"), filter.getDueBefore()));
+      }
+
+      return cb.and(predicates.toArray(Predicate[]::new));
+    };
+  }
+}

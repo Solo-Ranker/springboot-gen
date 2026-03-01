@@ -1,0 +1,20 @@
+package {{package}}.dto;
+
+import {{package}}.model.TodoEntity;
+import java.time.Instant;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class TodoFilter {
+  private String search;
+  private TodoEntity.Status status;
+  private TodoEntity.Priority priority;
+  private Instant dueBefore;
+  private Instant dueAfter;
+}

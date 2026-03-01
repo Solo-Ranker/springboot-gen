@@ -14,18 +14,21 @@ services:
     container_name: {{this.name}}
     {{#if this.ports}}
     ports:
-      {{#each this.ports}}- "{{this}}"
-      {{/each}}
+{{#each this.ports}}
+      - "{{this}}"
+{{/each}}
     {{/if}}
     {{#if this.environment}}
     environment:
-      {{#each this.environment}}{{@key}}: {{this}}
-      {{/each}}
+{{#each this.environment}}
+      {{@key}}: {{this}}
+{{/each}}
     {{/if}}
     {{#if this.volumes}}
     volumes:
-      {{#each this.volumes}}- {{this}}
-      {{/each}}
+{{#each this.volumes}}
+      - {{this}}
+{{/each}}
     {{/if}}
     {{#if this.healthcheck}}
     healthcheck:
@@ -37,9 +40,10 @@ services:
     {{/if}}
     {{#if this.depends_on}}
     depends_on:
-      {{#each this.depends_on}}{{this}}:
+{{#each this.depends_on}}
+      {{this}}:
         condition: service_healthy
-      {{/each}}
+{{/each}}
     {{/if}}
     restart: unless-stopped
     networks:
@@ -49,9 +53,10 @@ services:
 networks:
   app-network:
     driver: bridge
-{{#if volumes}}
 
+{{#if volumes}}
 volumes:
-  {{#each volumes}}{{this}}:
-  {{/each}}
+{{#each volumes}}
+  {{this}}:
+{{/each}}
 {{/if}}

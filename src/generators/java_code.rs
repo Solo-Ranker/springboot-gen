@@ -22,10 +22,10 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("core/ApiResponse"),
     tpl!("core/GlobalExceptionHandler"),
     tpl!("core/HealthController"),
+    tpl!("core/NotFoundException"),
     // Redis
+    tpl!("redis/RedisProperties"),
     tpl!("redis/RedisConfig"),
-    tpl!("redis/RedisSslConfig"),
-    tpl!("redis/RedisSentinelConfig"),
     tpl!("redis/CacheConfig"),
     // Kafka
     tpl!("kafka/KafkaConfig"),
@@ -50,8 +50,29 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("integrations/EmailService"),
     tpl!("integrations/WebSocketConfig"),
     // Database
-    tpl!("database/MongoConfig"),
     tpl!("database/JpaConfig"),
+    tpl!("todo/TodoEntity"),
+    tpl!("todo/TodoFilter"),
+    tpl!("todo/TodoSpecification"),
+    tpl!("todo/TodoRepository"),
+    tpl!("todo/Todo"),
+    tpl!("todo/TodoService"),
+    tpl!("todo/TodoController"),
+    // Database — standalone
+    tpl!("database/standalone/DatabaseProperties"),
+    tpl!("database/standalone/JdbcUrlBuilder"),
+    tpl!("database/standalone/DatabaseConfig"),
+    tpl!("database/standalone/DatabaseType"),
+    // Database — replication
+    tpl!("database/replication/DatabaseType"),
+    tpl!("database/replication/DataSourceType"),
+    tpl!("database/replication/DatabaseProperties"),
+    tpl!("database/replication/JdbcUrlBuilder"),
+    tpl!("database/replication/HikariDataSourceFactory"),
+    tpl!("database/replication/DatabaseConfig"),
+    tpl!("database/replication/LoadBalanceRoutingDataSource"),
+    tpl!("database/replication/RoutingDataSourceContext"),
+    tpl!("database/replication/TransactionRoutingAspect"),
 ];
 
 pub struct JavaCodeGenerator<'a> {
@@ -102,6 +123,13 @@ impl<'a> JavaCodeGenerator<'a> {
         )?;
 
         self.write(
+            &exception_dir,
+            "NotFoundException.java",
+            "core/NotFoundException",
+            &json!({ "package": package }),
+        )?;
+
+        self.write(
             &dto_dir,
             "ApiResponse.java",
             "core/ApiResponse",
@@ -116,28 +144,24 @@ impl<'a> JavaCodeGenerator<'a> {
         )?;
 
         // ── Redis ─────────────────────────────────────────────────────────────
+        // All redis variants use the same unified RedisConfig + RedisProperties.
+        // Mode (standalone/sentinel/cluster) and SSL are controlled via app.redis.* in YAML.
+        let props_dir = base.join("config/properties");
         let ctx = json!({ "package": package });
 
-        if self.has("redis") {
+        if self.has("redis")
+            || self.has("redis-ssl")
+            || self.has("redis-sentinel")
+            || self.has("redis-ssl-sentinel")
+            || self.has("redis-cluster")
+        {
+            self.write(
+                &props_dir,
+                "RedisProperties.java",
+                "redis/RedisProperties",
+                &ctx,
+            )?;
             self.write(&config_dir, "RedisConfig.java", "redis/RedisConfig", &ctx)?;
-            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
-        }
-        if self.has("redis-ssl") {
-            self.write(
-                &config_dir,
-                "RedisSslConfig.java",
-                "redis/RedisSslConfig",
-                &ctx,
-            )?;
-            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
-        }
-        if self.has("redis-sentinel") {
-            self.write(
-                &config_dir,
-                "RedisSentinelConfig.java",
-                "redis/RedisSentinelConfig",
-                &ctx,
-            )?;
             self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
         }
 
@@ -259,16 +283,134 @@ impl<'a> JavaCodeGenerator<'a> {
         }
 
         // ── Database ──────────────────────────────────────────────────────────
-        if self.has("mongodb") {
+        let ctx = json!({ "package": package });
+        let builder_dir = base.join("common/builder");
+        let enums_dir = base.join("common/enums");
+        let routing_dir = config_dir.join("routing");
+        let props_dir = base.join("config/properties");
+        let model_dir = base.join("model");
+        let specification_dir = base.join("common/specification");
+        let repository_dir = base.join("repository");
+        let service_dir = base.join("service");
+        let controller_dir = base.join("controller");
+
+        // DB - we will add to the sample crud api
+        if self.has("postgres") | self.has("mysql") {
+            self.write(&model_dir, "TodoEntity.java", "todo/TodoEntity", &ctx)?;
+            self.write(&dto_dir, "TodoFilter.java", "todo/TodoFilter", &ctx)?;
             self.write(
-                &config_dir,
-                "MongoConfig.java",
-                "database/MongoConfig",
+                &specification_dir,
+                "TodoSpecification.java",
+                "todo/TodoSpecification",
+                &ctx,
+            )?;
+            self.write(
+                &repository_dir,
+                "TodoRepository.java",
+                "todo/TodoRepository",
+                &ctx,
+            )?;
+            self.write(&dto_dir, "Todo.java", "todo/Todo", &ctx)?;
+            self.write(&service_dir, "TodoService.java", "todo/TodoService", &ctx)?;
+            self.write(
+                &controller_dir,
+                "TodoController.java",
+                "todo/TodoController",
                 &ctx,
             )?;
         }
-        if self.has("postgres") || self.has("mysql") {
+
+        // Standalone DB: postgres | mysql
+        if self.has("database-standalone") {
             self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
+            self.write(
+                &enums_dir,
+                "DatabaseType.java",
+                "database/standalone/DatabaseType",
+                &ctx,
+            )?;
+            self.write(
+                &props_dir,
+                "DatabaseProperties.java",
+                "database/standalone/DatabaseProperties",
+                &ctx,
+            )?;
+            self.write(
+                &builder_dir,
+                "JdbcUrlBuilder.java",
+                "database/standalone/JdbcUrlBuilder",
+                &ctx,
+            )?;
+            self.write(
+                &config_dir,
+                "DatabaseConfig.java",
+                "database/standalone/DatabaseConfig",
+                &ctx,
+            )?;
+        }
+
+        // Replication DB: master-slave setup
+        if self.has("database-replication") {
+            self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
+            // Enums
+            self.write(
+                &enums_dir,
+                "DatabaseType.java",
+                "database/replication/DatabaseType",
+                &ctx,
+            )?;
+            self.write(
+                &enums_dir,
+                "DataSourceType.java",
+                "database/replication/DataSourceType",
+                &ctx,
+            )?;
+            // Properties
+            self.write(
+                &props_dir,
+                "DatabaseProperties.java",
+                "database/replication/DatabaseProperties",
+                &ctx,
+            )?;
+            // Builders & factories
+            self.write(
+                &builder_dir,
+                "JdbcUrlBuilder.java",
+                "database/replication/JdbcUrlBuilder",
+                &ctx,
+            )?;
+            self.write(
+                &config_dir,
+                "HikariDataSourceFactory.java",
+                "database/replication/HikariDataSourceFactory",
+                &ctx,
+            )?;
+            // Config
+            self.write(
+                &config_dir,
+                "DatabaseConfig.java",
+                "database/replication/DatabaseConfig",
+                &ctx,
+            )?;
+            // Routing
+            self.write(
+                &routing_dir,
+                "RoutingDataSourceContext.java",
+                "database/replication/RoutingDataSourceContext",
+                &ctx,
+            )?;
+            self.write(
+                &routing_dir,
+                "LoadBalanceRoutingDataSource.java",
+                "database/replication/LoadBalanceRoutingDataSource",
+                &ctx,
+            )?;
+            self.write(
+                &routing_dir,
+                "TransactionRoutingAspect.java",
+                "database/replication/TransactionRoutingAspect",
+                &ctx,
+            )?;
         }
 
         Ok(())

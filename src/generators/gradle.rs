@@ -1,6 +1,6 @@
 use anyhow::Result;
 use handlebars::Handlebars;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::path::Path;
 
 use crate::config::ProjectConfig;
@@ -102,79 +102,126 @@ impl<'a> GradleGenerator<'a> {
         let mut deps: Vec<String> = Vec::new();
 
         // Core
+        deps.push("// Core Dependencies".to_string());
         deps.push(self.dep(
             kotlin_dsl,
             "implementation",
             "org.springframework.boot",
             "spring-boot-starter-web",
+            None,
         ));
         deps.push(self.dep(
             kotlin_dsl,
             "implementation",
             "org.springframework.boot",
             "spring-boot-starter-validation",
+            None,
         ));
-        deps.push(self.dep(kotlin_dsl, "compileOnly", "org.projectlombok", "lombok"));
+        deps.push(self.dep(
+            kotlin_dsl,
+            "compileOnly",
+            "org.projectlombok",
+            "lombok",
+            None,
+        ));
         deps.push(self.dep(
             kotlin_dsl,
             "annotationProcessor",
             "org.projectlombok",
             "lombok",
+            None,
         ));
         deps.push(self.dep(
             kotlin_dsl,
             "testImplementation",
             "org.springframework.boot",
             "spring-boot-starter-test",
+            None,
         ));
         deps.push(self.dep(
             kotlin_dsl,
             "testImplementation",
             "org.testcontainers",
             "junit-jupiter",
+            None,
         ));
 
         // Feature deps
         for feature in self.features {
+            if feature.maven_deps.is_empty() {
+                continue;
+            }
+            let mut feature_deps = Vec::new();
             for dep in feature.maven_deps {
-                let scope = match dep.scope {
+                let scope = match dep.scope.as_deref() {
                     Some("test") => "testImplementation",
                     Some("provided") => "compileOnly",
+                    Some("runtime") => "runtimeOnly",
                     _ => "implementation",
                 };
-                let d = self.dep(kotlin_dsl, scope, dep.group_id, dep.artifact_id);
+                let d = self.dep(
+                    kotlin_dsl,
+                    scope,
+                    &dep.group_id,
+                    &dep.artifact_id,
+                    dep.version.as_deref(),
+                );
                 if !deps.contains(&d) {
-                    deps.push(d);
+                    feature_deps.push(d);
                 }
+            }
+            if !feature_deps.is_empty() {
+                deps.push(String::new());
+                deps.push(format!("// {} Dependencies", feature.name));
+                deps.extend(feature_deps);
             }
         }
 
         // Feature-specific test deps
+        let mut test_deps = Vec::new();
         if self.has("kafka") {
-            deps.push(self.dep(
+            test_deps.push(self.dep(
                 kotlin_dsl,
                 "testImplementation",
                 "org.springframework.kafka",
                 "spring-kafka-test",
+                None,
             ));
         }
         if self.has("postgres") {
-            deps.push(self.dep(
+            test_deps.push(self.dep(
                 kotlin_dsl,
                 "testImplementation",
                 "org.testcontainers",
                 "postgresql",
+                None,
             ));
+        }
+        if !test_deps.is_empty() {
+            deps.push(String::new());
+            deps.push("// Additional Test Dependencies".to_string());
+            deps.extend(test_deps);
         }
 
         deps
     }
 
-    fn dep(&self, kotlin_dsl: bool, scope: &str, group: &str, artifact: &str) -> String {
+    fn dep(
+        &self,
+        kotlin_dsl: bool,
+        scope: &str,
+        group: &str,
+        artifact: &str,
+        version: Option<&str>,
+    ) -> String {
+        let coord = match version {
+            Some(v) => format!("{}:{}:{}", group, artifact, v),
+            None => format!("{}:{}", group, artifact),
+        };
         if kotlin_dsl {
-            format!("{}(\"{}:{}\")", scope, group, artifact)
+            format!("{}(\"{}\")", scope, coord)
         } else {
-            format!("{} '{}:{}'", scope, group, artifact)
+            format!("{} '{}'", scope, coord)
         }
     }
 

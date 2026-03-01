@@ -1,0 +1,52 @@
+CREATE TYPE todo_status AS ENUM ('PENDING', 'IN_PROGRESS', 'DONE', 'CANCELLED');
+CREATE TYPE todo_priority AS ENUM ('LOW', 'MEDIUM', 'HIGH');
+
+CREATE TABLE todos (
+    id          BIGSERIAL       PRIMARY KEY,
+    title       VARCHAR(255)    NOT NULL,
+    description TEXT,
+    status      todo_status     NOT NULL DEFAULT 'PENDING',
+    priority    todo_priority   NOT NULL DEFAULT 'MEDIUM',
+    due_date    TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for common filter/sort patterns
+CREATE INDEX idx_todos_status     ON todos (status);
+CREATE INDEX idx_todos_priority   ON todos (priority);
+CREATE INDEX idx_todos_created_at ON todos (created_at DESC);
+CREATE INDEX idx_todos_due_date   ON todos (due_date)  WHERE due_date IS NOT NULL;
+
+-- Composite index for the most common query: status + priority + sort by created_at
+CREATE INDEX idx_todos_status_priority_created
+ON todos (status, priority, created_at DESC);
+
+COMMENT ON TABLE  todos              IS 'Todo items';
+COMMENT ON COLUMN todos.status       IS 'PENDING | IN_PROGRESS | DONE | CANCELLED';
+COMMENT ON COLUMN todos.priority     IS 'LOW | MEDIUM | HIGH';
+COMMENT ON COLUMN todos.due_date     IS 'Optional deadline, stored in UTC';
+
+-- Don't rely on the app to set updated_at — enforce it at the DB level too.
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER todos_set_updated_at
+    BEFORE UPDATE ON todos
+    FOR EACH ROW
+    EXECUTE FUNCTION set_updated_at();
+
+-- Seed data
+INSERT INTO todos (title, description, status, priority, due_date) VALUES
+    ('Set up CI/CD pipeline',     'Configure GitHub Actions for build, test, deploy', 'IN_PROGRESS', 'HIGH',   NOW() + INTERVAL '3 days'),
+    ('Write unit tests',          'Cover service and repository layers',               'PENDING',     'HIGH',   NOW() + INTERVAL '5 days'),
+    ('Add request rate limiting', 'Use Bucket4j or API gateway throttling',            'PENDING',     'MEDIUM', NOW() + INTERVAL '7 days'),
+    ('Update README',             'Document setup steps and env vars',                 'PENDING',     'LOW',    NULL),
+    ('Code review PR #42',        NULL,                                                'DONE',        'MEDIUM', NOW() - INTERVAL '1 day'),
+    ('Fix N+1 on user query',     'Add fetch join or batch size config',               'DONE',        'HIGH',   NOW() - INTERVAL '2 days'),
+    ('Rotate dev credentials',    'Update .env.example and notify the team',           'CANCELLED',   'LOW',    NULL);

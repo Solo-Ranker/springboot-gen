@@ -1,0 +1,123 @@
+package {{package}}.config;
+
+import {{package}}.common.builder.JdbcUrlBuilder;
+import {{package}}.common.enums.DatabaseType;
+import {{package}}.config.properties.DatabaseProperties;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import java.util.Properties;
+import javax.sql.DataSource;
+import lombok.RequiredArgsConstructor;
+import org.flywaydb.core.Flyway;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.flyway.FlywayMigrationInitializer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+
+@Configuration
+@RequiredArgsConstructor
+@EnableConfigurationProperties(DatabaseProperties.class)
+public class DatabaseConfig {
+
+    private final DatabaseProperties props;
+
+    // ----------------------------------------------------------------------------------------------------
+    // DataSource
+    // ----------------------------------------------------------------------------------------------------
+    @Bean
+    public DataSource dataSource() {
+        HikariConfig config = new HikariConfig();
+
+        config.setJdbcUrl(JdbcUrlBuilder.build(props));
+        config.setUsername(props.getUsername());
+        config.setPassword(props.getPassword());
+        config.setDriverClassName(driverClassName());
+        config.setPoolName("pool-" + props.getType().name().toLowerCase());
+
+        applyPoolConfig(config);
+        applyDriverProperties(config);
+
+        return new HikariDataSource(config);
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // DataSource
+    // ----------------------------------------------------------------------------------------------------
+    @Bean
+    public Flyway flyway(DataSource dataSource) {
+        DatabaseProperties.Flyway flyway = props.getFlyway();
+        if (flyway == null || !flyway.isEnabled()) return null;
+
+        return Flyway.configure()
+                .dataSource(dataSource)
+                .baselineOnMigrate(flyway.isBaselineOnMigrate())
+                .baselineVersion(flyway.getBaselineVersion())
+                .table(flyway.getTable())
+                .validateOnMigrate(flyway.isValidateOnMigrate())
+                .outOfOrder(flyway.isOutOfOrder())
+                .locations(
+                        flyway.getLocations() != null && !flyway.getLocations().isEmpty()
+                                ? flyway.getLocations().toArray(String[]::new)
+                                : new String[] {"classpath:db/migrations"})
+                .load();
+    }
+
+    @Bean
+    @DependsOn("flyway")
+    @ConditionalOnProperty(prefix = "app.datasource.flyway", name = "enabled", havingValue = "true")
+    public FlywayMigrationInitializer flywayMigrationInitializer(Flyway flyway) {
+        return new FlywayMigrationInitializer(flyway, Flyway::migrate);
+    }
+
+    // ----------------------------------------------------------------------------------------------------
+    // Internals
+    // ----------------------------------------------------------------------------------------------------
+    private String driverClassName() {
+        return switch (props.getType()) {
+            case POSTGRES -> "org.postgresql.Driver";
+            case MYSQL -> "com.mysql.cj.jdbc.Driver";
+        };
+    }
+
+    private void applyPoolConfig(HikariConfig config) {
+        DatabaseProperties.Pool pool = props.getPool();
+        if (pool == null) return;
+
+        config.setMaximumPoolSize(pool.getMaximumPoolSize());
+        config.setMinimumIdle(pool.getMinimumIdle());
+        config.setConnectionTimeout(pool.getConnectionTimeout());
+        config.setMaxLifetime(pool.getMaxLifetime());
+        config.setKeepaliveTime(pool.getKeepaliveTime());
+    }
+
+    private void applyDriverProperties(HikariConfig config) {
+        // MySQL SSL is embedded in the URL - nothing extra here
+        if (props.getType().equals(DatabaseType.MYSQL)) return;
+
+        // PostgreSQL passes SSL config through driver properties.
+        DatabaseProperties.Ssl ssl = props.getSsl();
+        Properties driverProps = new Properties();
+
+        if (ssl == null || !ssl.isEnabled()) {
+            driverProps.setProperty("ssl", "false");
+            config.setDataSourceProperties(driverProps);
+            return;
+        }
+
+        driverProps.setProperty("ssl", "true");
+        driverProps.setProperty("sslmode", ssl.getMode());
+        setIfPresent(driverProps, "sslrootcert", ssl.getRootCertPath());
+        setIfPresent(driverProps, "sslcert", ssl.getCertPath());
+        setIfPresent(driverProps, "sslkey", ssl.getKeyPath());
+
+        config.setDataSourceProperties(driverProps);
+    }
+
+    private void setIfPresent(Properties props, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            props.setProperty(key, value);
+        }
+    }
+}
