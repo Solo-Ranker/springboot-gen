@@ -65,14 +65,11 @@ impl<'a> PropertiesGenerator<'a> {
             || self.has("redis-ssl-sentinel")
             || self.has("redis-cluster");
 
-        let has_db_standalone = self.has("postgres")
-            || self.has("mysql")
-            || self.has("postgres-ssl")
-            || self.has("mysql-ssl");
+        let has_db_standalone = self.has("database-standalone");
 
-        let db_is_mysql = self.has("mysql") || self.has("mysql-ssl");
+        let db_is_mysql = self.has("mysql");
 
-        let has_db_replication = self.has("db-replication");
+        let has_database_replication = self.has("database-replication");
 
         let data = json!({
             "artifact": crate::engine::to_artifact_id(&self.config.project.name),
@@ -104,20 +101,16 @@ impl<'a> PropertiesGenerator<'a> {
 
             "has_db_standalone":  has_db_standalone,
             "db_is_mysql":        db_is_mysql,
-            "has_db_replication": has_db_replication,
-
-            // Keep legacy postgres/mysql flags for any other templates that may still use them
-            "has_postgres":     self.has("postgres"),
-            "has_postgres_ssl": self.has("postgres-ssl"),
-            "has_mysql":        self.has("mysql"),
-            "has_mysql_ssl":    self.has("mysql-ssl"),
+            "has_db_replication": has_database_replication,
 
             "db": {
                 "type":          if db_is_mysql { "mysql" } else { "postgres" },
                 "host":          d.host,
-                "port":          d.port,
+                "port":          if db_is_mysql { 3306 } else { 5432 },
+                "replica_port":  if db_is_mysql { 3307 } else { 5433 },
+                "password":      "supersecret",
                 "name":          d.name,
-                "username":      d.username,
+                "username":      if db_is_mysql { "root" } else { "postgres" },
                 "pool_max_size": d.pool_max_size,
                 "flyway_enabled": d.flyway_enabled,
                 "ssl": {
@@ -156,7 +149,7 @@ impl<'a> PropertiesGenerator<'a> {
     fn render_dev(&self) -> Result<String> {
         Ok(self.hb.render(
             "application-dev",
-            &json!({ "has_openapi": self.has("openapi") }),
+            &json!({ "has_openapi": self.has("openapi")}),
         )?)
     }
 

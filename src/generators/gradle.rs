@@ -108,31 +108,42 @@ impl<'a> GradleGenerator<'a> {
             "implementation",
             "org.springframework.boot",
             "spring-boot-starter-web",
+            None,
         ));
         deps.push(self.dep(
             kotlin_dsl,
             "implementation",
             "org.springframework.boot",
             "spring-boot-starter-validation",
+            None,
         ));
-        deps.push(self.dep(kotlin_dsl, "compileOnly", "org.projectlombok", "lombok"));
+        deps.push(self.dep(
+            kotlin_dsl,
+            "compileOnly",
+            "org.projectlombok",
+            "lombok",
+            None,
+        ));
         deps.push(self.dep(
             kotlin_dsl,
             "annotationProcessor",
             "org.projectlombok",
             "lombok",
+            None,
         ));
         deps.push(self.dep(
             kotlin_dsl,
             "testImplementation",
             "org.springframework.boot",
             "spring-boot-starter-test",
+            None,
         ));
         deps.push(self.dep(
             kotlin_dsl,
             "testImplementation",
             "org.testcontainers",
             "junit-jupiter",
+            None,
         ));
 
         // Feature deps
@@ -145,9 +156,16 @@ impl<'a> GradleGenerator<'a> {
                 let scope = match dep.scope.as_deref() {
                     Some("test") => "testImplementation",
                     Some("provided") => "compileOnly",
+                    Some("runtime") => "runtimeOnly",
                     _ => "implementation",
                 };
-                let d = self.dep(kotlin_dsl, scope, &dep.group_id, &dep.artifact_id);
+                let d = self.dep(
+                    kotlin_dsl,
+                    scope,
+                    &dep.group_id,
+                    &dep.artifact_id,
+                    dep.version.as_deref(),
+                );
                 if !deps.contains(&d) {
                     feature_deps.push(d);
                 }
@@ -167,6 +185,7 @@ impl<'a> GradleGenerator<'a> {
                 "testImplementation",
                 "org.springframework.kafka",
                 "spring-kafka-test",
+                None,
             ));
         }
         if self.has("postgres") {
@@ -175,6 +194,7 @@ impl<'a> GradleGenerator<'a> {
                 "testImplementation",
                 "org.testcontainers",
                 "postgresql",
+                None,
             ));
         }
         if !test_deps.is_empty() {
@@ -186,11 +206,22 @@ impl<'a> GradleGenerator<'a> {
         deps
     }
 
-    fn dep(&self, kotlin_dsl: bool, scope: &str, group: &str, artifact: &str) -> String {
+    fn dep(
+        &self,
+        kotlin_dsl: bool,
+        scope: &str,
+        group: &str,
+        artifact: &str,
+        version: Option<&str>,
+    ) -> String {
+        let coord = match version {
+            Some(v) => format!("{}:{}:{}", group, artifact, v),
+            None => format!("{}:{}", group, artifact),
+        };
         if kotlin_dsl {
-            format!("{}(\"{}:{}\")", scope, group, artifact)
+            format!("{}(\"{}\")", scope, coord)
         } else {
-            format!("{} '{}:{}'", scope, group, artifact)
+            format!("{} '{}'", scope, coord)
         }
     }
 

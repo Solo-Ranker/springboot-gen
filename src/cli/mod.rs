@@ -342,7 +342,7 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         .default(0)
         .interact()?;
 
-    let java_versions = vec!["21", "17", "11"];
+    let java_versions = vec!["21", "17 (Not Recommended: Sample code are written with Java 21 syntax - will support that in the future)", "11 (Not Recommended: Sample code are written with Java 21 syntax - will support that in the future)"];
     let java_idx = Select::with_theme(theme)
         .with_prompt("Java version")
         .items(&java_versions)
@@ -401,7 +401,7 @@ fn prompt_database(
 ) -> Result<()> {
     use dialoguer::{Confirm, Select};
 
-    let db_options = vec!["None", "PostgreSQL", "MySQL", "MongoDB"];
+    let db_options = vec!["None", "PostgreSQL", "MySQL"];
     let db_idx = Select::with_theme(theme)
         .with_prompt("Database")
         .items(&db_options)
@@ -415,29 +415,29 @@ fn prompt_database(
     let db_feature = match db_idx {
         1 => "postgres",
         2 => "mysql",
-        3 => "mongodb",
         _ => return Ok(()),
     };
     args.features.push(db_feature.to_string());
 
-    if db_feature == "postgres" || db_feature == "mysql" {
-        let arch_options = vec!["Standalone", "Replication (Master-Slave)"];
-        let arch_idx = Select::with_theme(theme)
-            .with_prompt("Database Architecture")
-            .items(&arch_options)
-            .default(0)
-            .interact()?;
+    let arch_options = vec!["Standalone", "Replication (Master-Slave)"];
+    let arch_idx = Select::with_theme(theme)
+        .with_prompt("Database Architecture")
+        .items(&arch_options)
+        .default(0)
+        .interact()?;
 
-        if arch_idx == 1 {
-            args.features.push("db-replication".to_string());
-        }
+    let arch_feature = match arch_idx {
+        0 => "database-standalone",
+        1 => "database-replication",
+        _ => unreachable!(),
+    };
+    args.features.push(arch_feature.to_string());
 
-        let flyway = Confirm::with_theme(theme)
-            .with_prompt("Enable Flyway migrations?")
-            .default(true)
-            .interact()?;
-        config.database.flyway_enabled = flyway;
-    }
+    let flyway = Confirm::with_theme(theme)
+        .with_prompt("Enable Flyway migrations?")
+        .default(true)
+        .interact()?;
+    config.database.flyway_enabled = flyway;
 
     Ok(())
 }

@@ -1,0 +1,57 @@
+-- ----------------------------------------------------------------------------------------------------
+-- Table
+-- ----------------------------------------------------------------------------------------------------
+CREATE TABLE todos (
+    id          BIGINT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title       VARCHAR(255)    NOT NULL,
+    description TEXT,
+    status      VARCHAR(20)     NOT NULL DEFAULT 'PENDING'
+                    CHECK (status IN ('PENDING', 'IN_PROGRESS', 'DONE', 'CANCELLED')),
+    priority    VARCHAR(10)     NOT NULL DEFAULT 'MEDIUM'
+                    CHECK (priority IN ('LOW', 'MEDIUM', 'HIGH')),
+    due_date    DATETIME,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) COMMENT = 'Todo items';
+
+-- ----------------------------------------------------------------------------------------------------
+-- Indexes
+-- ----------------------------------------------------------------------------------------------------
+CREATE INDEX idx_todos_status          ON todos (status);
+CREATE INDEX idx_todos_priority        ON todos (priority);
+CREATE INDEX idx_todos_created_at      ON todos (created_at DESC);
+
+-- MySQL doesn't support partial indexes (WHERE clause), so drop the condition
+CREATE INDEX idx_todos_due_date        ON todos (due_date);
+
+-- Composite index
+CREATE INDEX idx_todos_status_priority_created ON todos (status, priority, created_at DESC);
+
+-- ----------------------------------------------------------------------------------------------------
+-- Trigger — updated_at is already handled by ON UPDATE CURRENT_TIMESTAMP above,
+-- but kept here to mirror the original intent if you ever need custom logic.
+-- Dropping it is fine if you rely solely on ON UPDATE CURRENT_TIMESTAMP.
+-- ----------------------------------------------------------------------------------------------------
+DELIMITER $$
+
+CREATE TRIGGER todos_set_updated_at
+    BEFORE UPDATE ON todos
+    FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END$$
+
+DELIMITER ;
+
+-- ----------------------------------------------------------------------------------------------------
+-- Seed data
+-- NOW() + INTERVAL works the same in MySQL
+-- ----------------------------------------------------------------------------------------------------
+INSERT INTO todos (title, description, status, priority, due_date) VALUES
+    ('Set up CI/CD pipeline',     'Configure GitHub Actions for build, test, deploy', 'IN_PROGRESS', 'HIGH',   DATE_ADD(NOW(), INTERVAL 3 DAY)),
+    ('Write unit tests',          'Cover service and repository layers',               'PENDING',     'HIGH',   DATE_ADD(NOW(), INTERVAL 5 DAY)),
+    ('Add request rate limiting', 'Use Bucket4j or API gateway throttling',            'PENDING',     'MEDIUM', DATE_ADD(NOW(), INTERVAL 7 DAY)),
+    ('Update README',             'Document setup steps and env vars',                 'PENDING',     'LOW',    NULL),
+    ('Code review PR #42',        NULL,                                                'DONE',        'MEDIUM', DATE_SUB(NOW(), INTERVAL 1 DAY)),
+    ('Fix N+1 on user query',     'Add fetch join or batch size config',               'DONE',        'HIGH',   DATE_SUB(NOW(), INTERVAL 2 DAY)),
+    ('Rotate dev credentials',    'Update .env.example and notify the team',           'CANCELLED',   'LOW',    NULL);

@@ -1,0 +1,86 @@
+package {{package}}.service;
+
+import {{package}}.common.specification.TodoSpecification;
+import {{package}}.dto.Todo;
+import {{package}}.dto.TodoFilter;
+import {{package}}.exception.NotFoundException;
+import {{package}}.model.TodoEntity;
+import {{package}}.repository.TodoRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true) {{#if has_db_standalone}}// slave by default {{/if}}
+public class TodoService {
+  private final TodoRepository todoRepository;
+
+  {{#if has_db_standalone}}
+  // -------------------------------------------------------------------------
+  // Reads → SLAVE (inherited from class-level readOnly = true)
+  // -------------------------------------------------------------------------
+  {{/if}}
+  public Page<Todo.Response> list(TodoFilter filter, Pageable pageable) {
+    return todoRepository
+        .findAll(TodoSpecification.from(filter), pageable)
+        .map(Todo.Response::from);
+  }
+
+  public Todo.Response findById(Long id) {
+    return todoRepository
+        .findById(id)
+        .map(Todo.Response::from)
+        .orElseThrow(() -> new NotFoundException(id));
+  }
+
+    {{#if has_db_standalone}}
+  // -------------------------------------------------------------------------
+  // Writes → MASTER (override class-level readOnly)
+  // -------------------------------------------------------------------------
+    {{/if}}
+  @Transactional
+  public Todo.Response create(Todo.CreateRequest req) {
+    TodoEntity todo = new TodoEntity();
+    todo.setTitle(req.getTitle());
+    todo.setDescription(req.getDescription());
+    todo.setPriority(req.getPriority() != null ? req.getPriority() : TodoEntity.Priority.MEDIUM);
+    todo.setDueDate(req.getDueDate());
+    return Todo.Response.from(todoRepository.save(todo));
+  }
+
+  @Transactional
+  public Todo.Response update(Long id, Todo.UpdateRequest req) {
+    TodoEntity todo = findEntity(id);
+    todo.setTitle(req.getTitle());
+    todo.setDescription(req.getDescription());
+    todo.setStatus(req.getStatus());
+    todo.setPriority(req.getPriority());
+    todo.setDueDate(req.getDueDate());
+    return Todo.Response.from(todoRepository.save(todo));
+  }
+
+  @Transactional
+  public Todo.Response patch(Long id, Todo.PatchRequest req) {
+    var todo = findEntity(id);
+    if (req.getTitle() != null) todo.setTitle(req.getTitle());
+    if (req.getDescription() != null) todo.setDescription(req.getDescription());
+    if (req.getStatus() != null) todo.setStatus(req.getStatus());
+    if (req.getPriority() != null) todo.setPriority(req.getPriority());
+    if (req.getDueDate() != null) todo.setDueDate(req.getDueDate());
+    return Todo.Response.from(todoRepository.save(todo));
+  }
+
+  @Transactional
+  public void delete(Long id) {
+    if (!todoRepository.existsById(id)) throw new NotFoundException(id);
+    todoRepository.deleteById(id);
+  }
+
+  // -------------------------------------------------------------------------
+  private TodoEntity findEntity(Long id) {
+    return todoRepository.findById(id).orElseThrow(() -> new NotFoundException(id));
+  }
+}

@@ -1,0 +1,79 @@
+package {{package}}.dto;
+
+import {{package}}.model.TodoEntity;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
+
+public final class Todo {
+
+  // -------------------------------------------------------------------------
+  // Requests
+  // -------------------------------------------------------------------------
+  @Getter
+  @Setter
+  public static class CreateRequest {
+    @NotBlank
+    @Size(max = 255)
+    private String title;
+
+    private String description;
+    private TodoEntity.Priority priority;
+    private Instant dueDate;
+  }
+
+  @Getter
+  @Setter
+  public static class UpdateRequest {
+    @NotBlank
+    @Size(max = 255)
+    private String title;
+
+    private String description;
+    private TodoEntity.Status status;
+    private TodoEntity.Priority priority;
+    private Instant dueDate;
+  }
+
+  @Getter
+  @Setter
+  public static class PatchRequest {
+    private String title;
+    private String description;
+    private TodoEntity.Status status;
+    private TodoEntity.Priority priority;
+    private Instant dueDate;
+  }
+
+  // -------------------------------------------------------------------------
+  // Response
+  // -------------------------------------------------------------------------
+  @Getter
+  @Setter
+  public static class Response {
+
+    private Long id;
+    private String title;
+    private String description;
+    private TodoEntity.Status status;
+    private TodoEntity.Priority priority;
+    private Instant dueDate;
+    private Instant createdAt;
+    private Instant updatedAt;
+
+    public static Response from(TodoEntity todo) {
+      Response response = new Response();
+      response.setId(todo.getId());
+      response.setTitle(todo.getTitle());
+      response.setDescription(todo.getDescription());
+      response.setStatus(todo.getStatus());
+      response.setPriority(todo.getPriority());
+      response.setDueDate(todo.getDueDate());
+      response.setCreatedAt(todo.getCreatedAt());
+      response.setUpdatedAt(todo.getUpdatedAt());
+      return response;
+    }
+  }
+}

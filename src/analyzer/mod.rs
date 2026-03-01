@@ -163,7 +163,10 @@ impl ProjectAnalyzer {
         if features.iter().any(|f| f.key == "docker") {
             crate::generators::docker::DockerGenerator::new(&config, &features)?
                 .generate(&args.output)?;
-            println!("  {} feature docker folders + Dockerfile", style("✓").green());
+            println!(
+                "  {} feature docker folders + Dockerfile",
+                style("✓").green()
+            );
         }
 
         if features.iter().any(|f| f.key == "kubernetes") {

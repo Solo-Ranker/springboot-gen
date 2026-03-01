@@ -86,13 +86,94 @@ impl<'a> DockerGenerator<'a> {
     }
 
     fn component_compose_context(&self, feature: &FeatureSpec) -> Value {
-        let infra_services: Vec<Value> = feature
-            .docker_services
-            .iter()
-            .map(|s| self.service_value(s))
-            .collect();
+        let is_db_repl = self.has("database-replication");
+        let mut infra_services: Vec<Value> = Vec::new();
+        let mut volumes = self.collect_volumes(feature.docker_services.iter());
 
-        let volumes = self.collect_volumes(feature.docker_services.iter());
+        if is_db_repl && feature.key == "postgres" {
+            volumes = vec![
+                "postgres_master_data".to_string(),
+                "postgres_slave_data".to_string(),
+            ];
+            infra_services.push(json!({
+                "name": "postgresql-master",
+                "image": "bitnami/postgresql:latest",
+                "ports": ["5432:5432"],
+                "environment": {
+                    "POSTGRESQL_REPLICATION_MODE": "master",
+                    "POSTGRESQL_USERNAME": "postgres",
+                    "POSTGRESQL_PASSWORD": "supersecret",
+                    "POSTGRESQL_DATABASE": "sample",
+                    "POSTGRESQL_REPLICATION_USER": "repl_user",
+                    "POSTGRESQL_REPLICATION_PASSWORD": "repl_password"
+                },
+                "volumes": ["postgres_master_data:/bitnami/postgresql"],
+                "healthcheck": "pg_isready -U postgres",
+                "networks": ["app-tier"]
+            }));
+            infra_services.push(json!({
+                "name": "postgresql-slave",
+                "image": "bitnami/postgresql:latest",
+                "depends_on": ["postgresql-master"],
+                "ports": ["5433:5432"],
+                "environment": {
+                    "POSTGRESQL_REPLICATION_MODE": "slave",
+                    "POSTGRESQL_MASTER_HOST": "postgresql-master",
+                    "POSTGRESQL_MASTER_PORT_NUMBER": "5432",
+                    "POSTGRESQL_REPLICATION_USER": "repl_user",
+                    "POSTGRESQL_REPLICATION_PASSWORD": "repl_password",
+                    "POSTGRESQL_USERNAME": "postgres",
+                    "POSTGRESQL_PASSWORD": "supersecret",
+                    "POSTGRESQL_DATABASE": "sample"
+                },
+                "volumes": ["postgres_slave_data:/bitnami/postgresql"],
+                "networks": ["app-tier"]
+            }));
+        } else if is_db_repl && feature.key == "mysql" {
+            volumes = vec![
+                "mysql_master_data".to_string(),
+                "mysql_slave_data".to_string(),
+            ];
+            infra_services.push(json!({
+                "name": "mysql-master",
+                "image": "bitnamilegacy/mysql:8.0",
+                "ports": ["3306:3306"],
+                "environment": {
+                    "MYSQL_REPLICATION_MODE": "master",
+                    "MYSQL_REPLICATION_USER": "repl_user",
+                    "MYSQL_REPLICATION_PASSWORD": "repl_password",
+                    "MYSQL_ROOT_PASSWORD": "supersecret",
+                    "MYSQL_DATABASE": "sample"
+                },
+                "volumes": ["mysql_master_data:/bitnami/mysql"],
+                "healthcheck": "mysqladmin ping -h localhost -psupersecret",
+                "networks": ["app-tier"]
+            }));
+            infra_services.push(json!({
+                "name": "mysql-slave",
+                "image": "bitnamilegacy/mysql:8.0",
+                "depends_on": ["mysql-master"],
+                "ports": ["3307:3306"],
+                "environment": {
+                    "MYSQL_REPLICATION_MODE": "slave",
+                    "MYSQL_MASTER_HOST": "mysql-master",
+                    "MYSQL_MASTER_PORT_NUMBER": "3306",
+                    "MYSQL_MASTER_ROOT_PASSWORD": "supersecret",
+                    "MYSQL_REPLICATION_USER": "repl_user",
+                    "MYSQL_REPLICATION_PASSWORD": "repl_password",
+                    "MYSQL_ROOT_PASSWORD": "supersecret",
+                    "MYSQL_DATABASE": "sample"
+                },
+                "volumes": ["mysql_slave_data:/bitnami/mysql"],
+                "networks": ["app-tier"]
+            }));
+        } else {
+            infra_services = feature
+                .docker_services
+                .iter()
+                .map(|s| self.service_value(s))
+                .collect();
+        }
 
         json!({
             "feature_name":   feature.name,

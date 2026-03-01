@@ -22,6 +22,7 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("core/ApiResponse"),
     tpl!("core/GlobalExceptionHandler"),
     tpl!("core/HealthController"),
+    tpl!("core/NotFoundException"),
     // Redis
     tpl!("redis/RedisProperties"),
     tpl!("redis/RedisConfig"),
@@ -48,12 +49,20 @@ const TEMPLATES: &[(&str, &str)] = &[
     tpl!("integrations/EmailConfig"),
     tpl!("integrations/EmailService"),
     tpl!("integrations/WebSocketConfig"),
-    // Database — standalone
-    tpl!("database/MongoConfig"),
+    // Database
     tpl!("database/JpaConfig"),
-    tpl!("database/DatabaseProperties"),
-    tpl!("database/JdbcUrlBuilder"),
-    tpl!("database/DatabaseConfig"),
+    tpl!("todo/TodoEntity"),
+    tpl!("todo/TodoFilter"),
+    tpl!("todo/TodoSpecification"),
+    tpl!("todo/TodoRepository"),
+    tpl!("todo/Todo"),
+    tpl!("todo/TodoService"),
+    tpl!("todo/TodoController"),
+    // Database — standalone
+    tpl!("database/standalone/DatabaseProperties"),
+    tpl!("database/standalone/JdbcUrlBuilder"),
+    tpl!("database/standalone/DatabaseConfig"),
+    tpl!("database/standalone/DatabaseType"),
     // Database — replication
     tpl!("database/replication/DatabaseType"),
     tpl!("database/replication/DataSourceType"),
@@ -114,6 +123,13 @@ impl<'a> JavaCodeGenerator<'a> {
         )?;
 
         self.write(
+            &exception_dir,
+            "NotFoundException.java",
+            "core/NotFoundException",
+            &json!({ "package": package }),
+        )?;
+
+        self.write(
             &dto_dir,
             "ApiResponse.java",
             "core/ApiResponse",
@@ -139,7 +155,12 @@ impl<'a> JavaCodeGenerator<'a> {
             || self.has("redis-ssl-sentinel")
             || self.has("redis-cluster")
         {
-            self.write(&props_dir, "RedisProperties.java", "redis/RedisProperties", &ctx)?;
+            self.write(
+                &props_dir,
+                "RedisProperties.java",
+                "redis/RedisProperties",
+                &ctx,
+            )?;
             self.write(&config_dir, "RedisConfig.java", "redis/RedisConfig", &ctx)?;
             self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
         }
@@ -263,49 +284,73 @@ impl<'a> JavaCodeGenerator<'a> {
 
         // ── Database ──────────────────────────────────────────────────────────
         let ctx = json!({ "package": package });
-        let common_dir = base.join("common/builder");
-        let enums_dir  = base.join("common/enums");
+        let builder_dir = base.join("common/builder");
+        let enums_dir = base.join("common/enums");
         let routing_dir = config_dir.join("routing");
-        let props_dir   = base.join("config/properties");
+        let props_dir = base.join("config/properties");
+        let model_dir = base.join("model");
+        let specification_dir = base.join("common/specification");
+        let repository_dir = base.join("repository");
+        let service_dir = base.join("service");
+        let controller_dir = base.join("controller");
 
-        if self.has("mongodb") {
+        // DB - we will add to the sample crud api
+        if self.has("postgres") | self.has("mysql") {
+            self.write(&model_dir, "TodoEntity.java", "todo/TodoEntity", &ctx)?;
+            self.write(&dto_dir, "TodoFilter.java", "todo/TodoFilter", &ctx)?;
             self.write(
-                &config_dir,
-                "MongoConfig.java",
-                "database/MongoConfig",
+                &specification_dir,
+                "TodoSpecification.java",
+                "todo/TodoSpecification",
+                &ctx,
+            )?;
+            self.write(
+                &repository_dir,
+                "TodoRepository.java",
+                "todo/TodoRepository",
+                &ctx,
+            )?;
+            self.write(&dto_dir, "Todo.java", "todo/Todo", &ctx)?;
+            self.write(&service_dir, "TodoService.java", "todo/TodoService", &ctx)?;
+            self.write(
+                &controller_dir,
+                "TodoController.java",
+                "todo/TodoController",
                 &ctx,
             )?;
         }
 
-        // Standalone DB: postgres | mysql | postgres-ssl | mysql-ssl
-        if self.has("postgres")
-            || self.has("mysql")
-            || self.has("postgres-ssl")
-            || self.has("mysql-ssl")
-        {
+        // Standalone DB: postgres | mysql
+        if self.has("database-standalone") {
             self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
             self.write(
-                &props_dir,
-                "DatabaseProperties.java",
-                "database/DatabaseProperties",
+                &enums_dir,
+                "DatabaseType.java",
+                "database/standalone/DatabaseType",
                 &ctx,
             )?;
             self.write(
-                &common_dir,
+                &props_dir,
+                "DatabaseProperties.java",
+                "database/standalone/DatabaseProperties",
+                &ctx,
+            )?;
+            self.write(
+                &builder_dir,
                 "JdbcUrlBuilder.java",
-                "database/JdbcUrlBuilder",
+                "database/standalone/JdbcUrlBuilder",
                 &ctx,
             )?;
             self.write(
                 &config_dir,
                 "DatabaseConfig.java",
-                "database/DatabaseConfig",
+                "database/standalone/DatabaseConfig",
                 &ctx,
             )?;
         }
 
         // Replication DB: master-slave setup
-        if self.has("db-replication") {
+        if self.has("database-replication") {
             self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
             // Enums
             self.write(
@@ -329,7 +374,7 @@ impl<'a> JavaCodeGenerator<'a> {
             )?;
             // Builders & factories
             self.write(
-                &common_dir,
+                &builder_dir,
                 "JdbcUrlBuilder.java",
                 "database/replication/JdbcUrlBuilder",
                 &ctx,

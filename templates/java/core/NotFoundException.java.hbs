@@ -1,0 +1,7 @@
+package {{package}}.exception;
+
+public class NotFoundException extends RuntimeException {
+  public NotFoundException(Long id) {
+    super("Record not found: " + id);
+  }
+}

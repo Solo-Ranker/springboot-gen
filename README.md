@@ -53,7 +53,7 @@ springboot-gen new my-service \
 
 cd my-service
 docker-compose up -d
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 
 ---

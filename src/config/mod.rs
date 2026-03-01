@@ -492,7 +492,7 @@ fn default_db_port() -> u16 {
     5432
 }
 fn default_db_name() -> String {
-    "appdb".into()
+    "sample".into()
 }
 fn default_db_user() -> String {
     "postgres".into()

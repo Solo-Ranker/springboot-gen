@@ -36,17 +36,15 @@ spring:
       ack-mode: BATCH
   {{/if}}
 
-  {{#if has_db_standalone}}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     properties:
       hibernate:
         dialect: "{{#if db_is_mysql}}org.hibernate.dialect.MySQL8Dialect{{else}}org.hibernate.dialect.PostgreSQLDialect{{/if}}"
         show_sql: false
         format_sql: true
     open-in-view: false
-  {{/if}}
 
   {{#if has_mongodb}}
   data:
@@ -205,7 +203,7 @@ app:
     port: ${DB_PORT:{{db.port}}}
     database: ${DB_NAME:{{db.name}}}
     username: ${DB_USER:{{db.username}}}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:{{db.password}}}
     ssl:
       enabled: false                       # set to true to enable
       mode: ${DB_SSL_MODE:require}         # disable|allow|prefer|require|verify-ca|verify-full
@@ -239,19 +237,20 @@ app:
       port: ${DB_MASTER_PORT:{{db.port}}}
       database: ${DB_NAME:{{db.name}}}
       username: ${DB_MASTER_USER:{{db.username}}}
-      password: ${DB_MASTER_PASSWORD:}
+      password: ${DB_MASTER_PASSWORD:{{db.password}}}
     slaves:
       - host: ${DB_SLAVE_HOST:{{db.host}}}
-        port: ${DB_SLAVE_PORT:{{db.port}}}
+        port: ${DB_SLAVE_PORT:{{db.replica_port}}}
         database: ${DB_NAME:{{db.name}}}
         username: ${DB_SLAVE_USER:{{db.username}}}
-        password: ${DB_SLAVE_PASSWORD:}
+        password: ${DB_SLAVE_PASSWORD:{{db.password}}}
     ssl:
-      enabled: false
-      mode: ${DB_SSL_MODE:require}
+      enabled: false                       # set to true to enable
+      mode: ${DB_SSL_MODE:require}         # disable|allow|prefer|require|verify-ca|verify-full
       root-cert-path: ${DB_SSL_ROOT_CERT:}
       cert-path: ${DB_SSL_CERT:}
       key-path: ${DB_SSL_KEY:}
+      trust-server-certificate: false      # MySQL only: set true to skip CA verification
     pool:
       maximum-pool-size: {{db.pool_max_size}}
       minimum-idle: 2
@@ -259,15 +258,15 @@ app:
       idle-timeout: 600000
       max-lifetime: 1800000
       keepalive-time: 60000
-  flyway:
-    enabled: {{db.flyway_enabled}}
-    baseline-on-migrate: true
-    baseline-version: "0"
-    table: flyway_schema_history
-    validate-on-migrate: true
-    out-of-order: false
-    locations:
-      - classpath:db/migration
+    flyway:
+      enabled: {{db.flyway_enabled}}
+      baseline-on-migrate: true
+      baseline-version: "0"
+      table: flyway_schema_history
+      validate-on-migrate: true
+      out-of-order: false
+      locations:
+        - classpath:db/migration
   {{/if}}
 
   {{#if has_jwt}}

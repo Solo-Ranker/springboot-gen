@@ -22,7 +22,11 @@ macro_rules! tpl {
     };
 }
 
-const MISC_TEMPLATES: &[(&str, &str)] = &[tpl!("gitignore"), tpl!("flyway-init.sql")];
+const MISC_TEMPLATES: &[(&str, &str)] = &[
+    tpl!("gitignore"),
+    tpl!("postgres/V1_0_0__CREATE_TODOS_TABLE.sql"),
+    tpl!("mysql/V1_0_0__CREATE_TODOS_TABLE.sql"),
+];
 
 pub struct GenerationEngine {
     hb: Handlebars<'static>,
@@ -117,7 +121,7 @@ impl GenerationEngine {
             .any(|f| f.key == "postgres" || f.key == "mysql")
         {
             pb.set_message("Generating Flyway migration");
-            self.generate_flyway_init(&out_dir)?;
+            self.generate_flyway_migration(&out_dir, &features)?;
         }
         pb.inc(1);
 
@@ -267,12 +271,23 @@ impl GenerationEngine {
         Ok(())
     }
 
-    fn generate_flyway_init(&self, out: &Path) -> Result<()> {
-        let migration_file = out.join("src/main/resources/db/migration/V1__init_schema.sql");
-        if !migration_file.exists() {
-            let content = self.hb.render("flyway-init.sql", &serde_json::json!({}))?;
-            std::fs::write(migration_file, content)?;
+    fn generate_flyway_migration(&self, out: &Path, features: &[FeatureSpec]) -> Result<()> {
+        let migration_file =
+            out.join("src/main/resources/db/migration/V1_0_0__CREATE_TODOS_TABLE.sql");
+
+        if migration_file.exists() {
+            return Ok(());
         }
+
+        let template = if features.iter().any(|f| f.key == "mysql") {
+            "mysql/V1_0_0__CREATE_TODOS_TABLE.sql"
+        } else {
+            "postgres/V1_0_0__CREATE_TODOS_TABLE.sql"
+        };
+
+        let content = self.hb.render(template, &serde_json::json!({}))?;
+        std::fs::write(migration_file, content)?;
+
         Ok(())
     }
 
@@ -292,7 +307,7 @@ impl GenerationEngine {
                 (gradlew.to_string(), vec!["spotlessApply"])
             }
             _ => {
-                let mvnw = if cfg!(windows) { "mvnw.cmd" } else { "./mvnw" };
+                let mvnw = "mvn";
                 (mvnw.to_string(), vec!["spotless:apply"])
             }
         };
@@ -401,7 +416,7 @@ impl GenerationEngine {
                 println!("    ./gradlew bootRun        # Start the app");
             }
             _ => {
-                println!("    ./mvnw spring-boot:run   # Start the app");
+                println!("    mvn spring-boot:run   # Start the app");
             }
         }
 
