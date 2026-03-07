@@ -99,52 +99,52 @@ impl<'a> GradleGenerator<'a> {
     // ── Dependency collection ─────────────────────────────────────────────────
 
     fn collect_deps(&self, kotlin_dsl: bool) -> Vec<String> {
-        let mut deps: Vec<String> = Vec::new();
-
         // Core
-        deps.push("// Core Dependencies".to_string());
-        deps.push(self.dep(
-            kotlin_dsl,
-            "implementation",
-            "org.springframework.boot",
-            "spring-boot-starter-web",
-            None,
-        ));
-        deps.push(self.dep(
-            kotlin_dsl,
-            "implementation",
-            "org.springframework.boot",
-            "spring-boot-starter-validation",
-            None,
-        ));
-        deps.push(self.dep(
-            kotlin_dsl,
-            "compileOnly",
-            "org.projectlombok",
-            "lombok",
-            None,
-        ));
-        deps.push(self.dep(
-            kotlin_dsl,
-            "annotationProcessor",
-            "org.projectlombok",
-            "lombok",
-            None,
-        ));
-        deps.push(self.dep(
-            kotlin_dsl,
-            "testImplementation",
-            "org.springframework.boot",
-            "spring-boot-starter-test",
-            None,
-        ));
-        deps.push(self.dep(
-            kotlin_dsl,
-            "testImplementation",
-            "org.testcontainers",
-            "junit-jupiter",
-            None,
-        ));
+        let mut deps: Vec<String> = vec![
+            "// Core Dependencies".to_string(),
+            self.dep(
+                kotlin_dsl,
+                "implementation",
+                "org.springframework.boot",
+                "spring-boot-starter-web",
+                None,
+            ),
+            self.dep(
+                kotlin_dsl,
+                "implementation",
+                "org.springframework.boot",
+                "spring-boot-starter-validation",
+                None,
+            ),
+            self.dep(
+                kotlin_dsl,
+                "compileOnly",
+                "org.projectlombok",
+                "lombok",
+                None,
+            ),
+            self.dep(
+                kotlin_dsl,
+                "annotationProcessor",
+                "org.projectlombok",
+                "lombok",
+                None,
+            ),
+            self.dep(
+                kotlin_dsl,
+                "testImplementation",
+                "org.springframework.boot",
+                "spring-boot-starter-test",
+                None,
+            ),
+            self.dep(
+                kotlin_dsl,
+                "testImplementation",
+                "org.testcontainers",
+                "junit-jupiter",
+                None,
+            ),
+        ];
 
         // Feature deps
         for feature in self.features {
@@ -153,7 +153,7 @@ impl<'a> GradleGenerator<'a> {
             }
             let mut feature_deps = Vec::new();
             for dep in feature.maven_deps {
-                let scope = match dep.scope.as_deref() {
+                let scope = match dep.scope {
                     Some("test") => "testImplementation",
                     Some("provided") => "compileOnly",
                     Some("runtime") => "runtimeOnly",
@@ -162,9 +162,9 @@ impl<'a> GradleGenerator<'a> {
                 let d = self.dep(
                     kotlin_dsl,
                     scope,
-                    &dep.group_id,
-                    &dep.artifact_id,
-                    dep.version.as_deref(),
+                    dep.group_id,
+                    dep.artifact_id,
+                    dep.version,
                 );
                 if !deps.contains(&d) {
                     feature_deps.push(d);

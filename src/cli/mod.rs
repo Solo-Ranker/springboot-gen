@@ -457,11 +457,9 @@ fn prompt_cache(
         return Ok(());
     }
 
-    let modes = vec![
-        ("redis", "Standalone"),
+    let modes = [("redis", "Standalone"),
         ("redis-sentinel", "Sentinel HA"),
-        ("redis-cluster", "Cluster"),
-    ];
+        ("redis-cluster", "Cluster")];
     let labels: Vec<&str> = modes.iter().map(|(_, l)| *l).collect();
 
     let idx = Select::with_theme(theme)
@@ -501,10 +499,8 @@ fn prompt_messaging(
             args.features.push("kafka".to_string());
 
             // Kafka stack options
-            let stack_options = vec![
-                ("sasl", "SASL Authentication"),
-                ("ssl", "SSL/TLS Encryption"),
-            ];
+            let stack_options = [("sasl", "SASL Authentication"),
+                ("ssl", "SSL/TLS Encryption")];
             let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
 
             let selections = MultiSelect::with_theme(theme)
@@ -565,10 +561,8 @@ fn prompt_observability(
 ) -> Result<()> {
     use dialoguer::MultiSelect;
 
-    let options = vec![
-        ("actuator", "Spring Actuator (Health/Metrics)"),
-        ("tracing", "Distributed Tracing (Micrometer + Zipkin)"),
-    ];
+    let options = [("actuator", "Spring Actuator (Health/Metrics)"),
+        ("tracing", "Distributed Tracing (Micrometer + Zipkin)")];
     let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
 
     let selections = MultiSelect::with_theme(theme)
@@ -589,13 +583,11 @@ fn prompt_others(
 ) -> Result<()> {
     use dialoguer::MultiSelect;
 
-    let options = vec![
-        ("openapi", "OpenAPI / Swagger UI"),
+    let options = [("openapi", "OpenAPI / Swagger UI"),
         ("websocket", "WebSocket"),
         ("s3", "AWS S3 / MinIO"),
         ("email", "Email Support"),
-        ("elasticsearch", "Elasticsearch"),
-    ];
+        ("elasticsearch", "Elasticsearch")];
     let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
 
     let selections = MultiSelect::with_theme(theme)
@@ -616,10 +608,8 @@ fn prompt_infrastructure(
 ) -> Result<()> {
     use dialoguer::MultiSelect;
 
-    let options = vec![
-        ("docker", "Docker Compose Support"),
-        ("kubernetes", "Kubernetes Manifests"),
-    ];
+    let options = [("docker", "Docker Compose Support"),
+        ("kubernetes", "Kubernetes Manifests")];
     let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
     // Default select Docker
     let defaults = vec![true, false];

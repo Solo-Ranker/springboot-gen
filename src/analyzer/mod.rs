@@ -225,7 +225,7 @@ impl ProjectAnalyzer {
             for entry in WalkDir::new(&src_root)
                 .into_iter()
                 .filter_map(|e| e.ok())
-                .filter(|e| e.path().extension().map_or(false, |ext| ext == "java"))
+                .filter(|e| e.path().extension().is_some_and(|ext| ext == "java"))
             {
                 if let Ok(content) = std::fs::read_to_string(entry.path()) {
                     java_annotations.push(content);

@@ -12,7 +12,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::path::{Path, PathBuf};
 
 /// The central generation engine — resolves features, then fans out to generators
-
 macro_rules! tpl {
     ($name:literal) => {
         (
