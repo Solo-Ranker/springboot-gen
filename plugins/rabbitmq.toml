@@ -1,0 +1,36 @@
+conflicts = [
+    "kafka",
+    "ibmmq",
+]
+description = "RabbitMQ messaging with Spring AMQP"
+key = "rabbitmq"
+name = "RabbitMQ"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "rabbitmq-diagnostics -q ping"
+image = "rabbitmq:3-management"
+name = "rabbitmq"
+ports = [
+    "5672:5672",
+    "15672:15672",
+]
+volumes = ["rabbitmq_data:/var/lib/rabbitmq"]
+
+[docker_services.environment]
+RABBITMQ_DEFAULT_PASS = "${RABBITMQ_PASSWORD:-guest}"
+RABBITMQ_DEFAULT_USER = "${RABBITMQ_USER:-guest}"
+
+[env_vars]
+RABBITMQ_HOST = "localhost"
+RABBITMQ_PASSWORD = "guest"
+RABBITMQ_PORT = "5672"
+RABBITMQ_USER = "guest"
+
+[java_files]
+"rabbitmq/RabbitMqConfig" = "config/RabbitMqConfig"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-amqp"
+group_id = "org.springframework.boot"

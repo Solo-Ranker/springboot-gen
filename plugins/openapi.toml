@@ -1,0 +1,16 @@
+conflicts = []
+description = "OpenAPI 3 documentation with Swagger UI"
+docker_services = []
+key = "openapi"
+name = "OpenAPI / Swagger"
+requires = []
+
+[env_vars]
+
+[java_files]
+"integrations/OpenApiConfig" = "config/OpenApiConfig"
+
+[[maven_deps]]
+artifact_id = "springdoc-openapi-starter-webmvc-ui"
+group_id = "org.springdoc"
+version = "2.8.8"

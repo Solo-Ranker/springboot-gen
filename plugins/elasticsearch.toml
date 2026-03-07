@@ -1,0 +1,33 @@
+conflicts = []
+description = "Spring Data Elasticsearch with Java client"
+key = "elasticsearch"
+name = "Elasticsearch"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "curl -f http://localhost:9200/_cluster/health"
+image = "elasticsearch:8.12.0"
+name = "elasticsearch"
+ports = [
+    "9200:9200",
+    "9300:9300",
+]
+volumes = ["es_data:/usr/share/elasticsearch/data"]
+
+[docker_services.environment]
+ES_JAVA_OPTS = "-Xms512m -Xmx512m"
+"discovery.type" = "single-node"
+"xpack.security.enabled" = "false"
+
+[env_vars]
+ELASTICSEARCH_PASSWORD = "elastic"
+ELASTICSEARCH_URIS = "http://localhost:9200"
+ELASTICSEARCH_USER = "elastic"
+
+[java_files]
+"elasticsearch/ElasticsearchConfig" = "config/ElasticsearchConfig"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-data-elasticsearch"
+group_id = "org.springframework.boot"

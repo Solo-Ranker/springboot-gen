@@ -1,0 +1,38 @@
+conflicts = [
+    "kafka",
+    "rabbitmq",
+]
+description = "IBM MQ (JMS) integration"
+key = "ibmmq"
+name = "IBM MQ"
+requires = []
+
+[[docker_services]]
+depends_on = []
+image = "ibmcom/mq:latest"
+name = "ibmmq"
+ports = [
+    "1414:1414",
+    "9443:9443",
+]
+volumes = ["ibmmq_data:/mnt/mqm"]
+
+[docker_services.environment]
+LICENSE = "accept"
+MQ_QMGR_NAME = "${IBM_MQ_QM:-QM1}"
+
+[env_vars]
+IBM_MQ_CHANNEL = "DEV.APP.SVRCONN"
+IBM_MQ_HOST = "localhost"
+IBM_MQ_PASSWORD = ""
+IBM_MQ_PORT = "1414"
+IBM_MQ_QM = "QM1"
+IBM_MQ_USER = "app"
+
+[java_files]
+"ibmmq/IbmMqConfig" = "config/IbmMqConfig"
+
+[[maven_deps]]
+artifact_id = "mq-jms-spring-boot-starter"
+group_id = "com.ibm.mq"
+version = "3.3.4"

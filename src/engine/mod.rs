@@ -354,7 +354,7 @@ impl GenerationEngine {
             println!(
                 "  {} {} — {}",
                 style("•").dim(),
-                style(f.key).green(),
+                style(&f.key).green(),
                 f.description
             );
         }

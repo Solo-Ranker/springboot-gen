@@ -1,0 +1,20 @@
+conflicts = ["database-standalone"]
+description = "Database Replication (Master-Slave) routing data source"
+docker_services = []
+key = "database-replication"
+maven_deps = []
+name = "Database Replication"
+requires = []
+
+[env_vars]
+
+[java_files]
+"database/replication/DataSourceType" = "common/enums/DataSourceType"
+"database/replication/DatabaseConfig" = "config/DatabaseConfig"
+"database/replication/DatabaseProperties" = "config/properties/DatabaseProperties"
+"database/replication/DatabaseType" = "common/enums/DatabaseType"
+"database/replication/HikariDataSourceFactory" = "config/HikariDataSourceFactory"
+"database/replication/JdbcUrlBuilder" = "common/builder/JdbcUrlBuilder"
+"database/replication/LoadBalanceRoutingDataSource" = "config/routing/LoadBalanceRoutingDataSource"
+"database/replication/RoutingDataSourceContext" = "config/routing/RoutingDataSourceContext"
+"database/replication/TransactionRoutingAspect" = "config/routing/TransactionRoutingAspect"

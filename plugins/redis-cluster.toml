@@ -1,0 +1,59 @@
+conflicts = [
+    "redis",
+    "redis-sentinel",
+]
+description = "Redis Cluster for high availability and partitioning"
+key = "redis-cluster"
+name = "Redis (Cluster)"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "redis-cli -p 7000 ping"
+image = "redis:7.2-alpine"
+name = "redis-node-1"
+ports = ["7000:7000"]
+volumes = []
+
+[docker_services.environment]
+
+[[docker_services]]
+depends_on = []
+healthcheck = "redis-cli -p 7001 ping"
+image = "redis:7.2-alpine"
+name = "redis-node-2"
+ports = ["7001:7001"]
+volumes = []
+
+[docker_services.environment]
+
+[[docker_services]]
+depends_on = []
+healthcheck = "redis-cli -p 7002 ping"
+image = "redis:7.2-alpine"
+name = "redis-node-3"
+ports = ["7002:7002"]
+volumes = []
+
+[docker_services.environment]
+
+[env_vars]
+REDIS_CLUSTER_NODES = "localhost:7000,localhost:7001,localhost:7002"
+REDIS_PASSWORD = ""
+
+[java_files]
+"redis/CacheConfig" = "config/CacheConfig"
+"redis/RedisClusterConfig" = "config/RedisClusterConfig"
+"redis/RedisProperties" = "config/properties/RedisProperties"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-data-redis"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "lettuce-core"
+group_id = "io.lettuce"
+
+[[maven_deps]]
+artifact_id = "commons-pool2"
+group_id = "org.apache.commons"

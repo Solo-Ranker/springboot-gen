@@ -130,7 +130,7 @@ impl<'a> EnvFileGenerator<'a> {
         vars.insert("SPRING_PROFILES_ACTIVE".into(), "dev".into());
         vars.insert("SERVER_PORT".into(), "8080".into());
         for feature in self.features {
-            for (key, val) in feature.env_vars {
+            for (key, val) in &feature.env_vars {
                 vars.entry(key.to_string()).or_insert(val.to_string());
             }
         }

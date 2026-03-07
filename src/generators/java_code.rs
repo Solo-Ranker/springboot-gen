@@ -101,11 +101,6 @@ impl<'a> JavaCodeGenerator<'a> {
         let package = format!("{}.{}", group, artifact);
 
         let base = out.join("src/main/java").join(package_path).join(artifact);
-        let config_dir = base.join("config");
-        let controller_dir = base.join("controller");
-        let service_dir = base.join("service");
-        let dto_dir = base.join("dto");
-        let exception_dir = base.join("exception");
 
         // ── Core ─────────────────────────────────────────────────────────────
         self.write(
@@ -116,301 +111,54 @@ impl<'a> JavaCodeGenerator<'a> {
         )?;
 
         self.write(
-            &exception_dir,
+            &base.join("exception"),
             "GlobalExceptionHandler.java",
             "core/GlobalExceptionHandler",
             &json!({ "package": package }),
         )?;
 
         self.write(
-            &exception_dir,
+            &base.join("exception"),
             "NotFoundException.java",
             "core/NotFoundException",
             &json!({ "package": package }),
         )?;
 
         self.write(
-            &dto_dir,
+            &base.join("dto"),
             "ApiResponse.java",
             "core/ApiResponse",
             &json!({ "package": package }),
         )?;
 
         self.write(
-            &controller_dir,
+            &base.join("controller"),
             "HealthController.java",
             "core/HealthController",
             &json!({ "package": package }),
         )?;
 
-        // ── Redis ─────────────────────────────────────────────────────────────
-        // All redis variants use the same unified RedisConfig + RedisProperties.
-        // Mode (standalone/sentinel/cluster) and SSL are controlled via app.redis.* in YAML.
-        let props_dir = base.join("config/properties");
-        let ctx = json!({ "package": package });
+        // ── Dynamic Feature Templates ──────────────────────────────────────────
+        let ctx = json!({ "package": package, "project_name": self.config.project.name, "className": to_class_name(artifact) });
 
-        if self.has("redis")
-            || self.has("redis-ssl")
-            || self.has("redis-sentinel")
-            || self.has("redis-ssl-sentinel")
-            || self.has("redis-cluster")
-        {
-            self.write(
-                &props_dir,
-                "RedisProperties.java",
-                "redis/RedisProperties",
-                &ctx,
-            )?;
-            self.write(&config_dir, "RedisConfig.java", "redis/RedisConfig", &ctx)?;
-            self.write(&config_dir, "CacheConfig.java", "redis/CacheConfig", &ctx)?;
-        }
+        for feature in self.features {
+            for (tpl_key, dest_path) in &feature.java_files {
+                let parts: Vec<&str> = dest_path.split('/').collect();
+                let class_name = parts.last().unwrap();
+                
+                let mut dest_dir = base.clone();
+                for folder in &parts[..parts.len() - 1] {
+                    dest_dir = dest_dir.join(folder);
+                }
 
-        // ── Kafka ─────────────────────────────────────────────────────────────
-        if self.has("kafka") {
-            self.write(&config_dir, "KafkaConfig.java", "kafka/KafkaConfig", &ctx)?;
-            self.write(
-                &config_dir,
-                "KafkaTopicConfig.java",
-                "kafka/KafkaTopicConfig",
-                &ctx,
-            )?;
-            self.write(
-                &service_dir,
-                "KafkaProducerService.java",
-                "kafka/KafkaProducerService",
-                &ctx,
-            )?;
-            self.write(
-                &service_dir,
-                "KafkaConsumerService.java",
-                "kafka/KafkaConsumerService",
-                &ctx,
-            )?;
-        }
-
-        // ── Security ──────────────────────────────────────────────────────────
-        if self.has("security") && !self.has("jwt") && !self.has("oauth2") {
-            self.write(
-                &config_dir,
-                "SecurityConfig.java",
-                "security/BasicSecurityConfig",
-                &ctx,
-            )?;
-        }
-        if self.has("jwt") {
-            self.write(
-                &config_dir,
-                "SecurityConfig.java",
-                "security/JwtSecurityConfig",
-                &ctx,
-            )?;
-            self.write(
-                &config_dir,
-                "JwtProperties.java",
-                "security/JwtProperties",
-                &ctx,
-            )?;
-            self.write(&service_dir, "JwtService.java", "security/JwtService", &ctx)?;
-            self.write(
-                &config_dir,
-                "JwtAuthenticationFilter.java",
-                "security/JwtAuthenticationFilter",
-                &ctx,
-            )?;
-            self.write(
-                &controller_dir,
-                "AuthController.java",
-                "security/AuthController",
-                &ctx,
-            )?;
-            self.write(
-                &dto_dir,
-                "TokenResponse.java",
-                "security/TokenResponse",
-                &ctx,
-            )?;
-            self.write(&dto_dir, "LoginRequest.java", "security/LoginRequest", &ctx)?;
-        }
-        if self.has("oauth2") {
-            self.write(
-                &config_dir,
-                "SecurityConfig.java",
-                "security/OAuth2SecurityConfig",
-                &ctx,
-            )?;
-        }
-
-        // ── Integrations ──────────────────────────────────────────────────────
-        if self.has("openapi") {
-            let ctx = json!({ "package": package, "project_name": self.config.project.name });
-            self.write(
-                &config_dir,
-                "OpenApiConfig.java",
-                "integrations/OpenApiConfig",
-                &ctx,
-            )?;
-        }
-        if self.has("s3") {
-            self.write(&config_dir, "S3Config.java", "integrations/S3Config", &ctx)?;
-            self.write(
-                &service_dir,
-                "S3Service.java",
-                "integrations/S3Service",
-                &ctx,
-            )?;
-        }
-        if self.has("email") {
-            self.write(
-                &config_dir,
-                "EmailConfig.java",
-                "integrations/EmailConfig",
-                &ctx,
-            )?;
-            self.write(
-                &service_dir,
-                "EmailService.java",
-                "integrations/EmailService",
-                &ctx,
-            )?;
-        }
-        if self.has("websocket") {
-            self.write(
-                &config_dir,
-                "WebSocketConfig.java",
-                "integrations/WebSocketConfig",
-                &ctx,
-            )?;
-        }
-
-        // ── Database ──────────────────────────────────────────────────────────
-        let ctx = json!({ "package": package });
-        let builder_dir = base.join("common/builder");
-        let enums_dir = base.join("common/enums");
-        let routing_dir = config_dir.join("routing");
-        let props_dir = base.join("config/properties");
-        let model_dir = base.join("model");
-        let specification_dir = base.join("common/specification");
-        let repository_dir = base.join("repository");
-        let service_dir = base.join("service");
-        let controller_dir = base.join("controller");
-
-        // DB - we will add to the sample crud api
-        if self.has("postgres") | self.has("mysql") {
-            self.write(&model_dir, "TodoEntity.java", "todo/TodoEntity", &ctx)?;
-            self.write(&dto_dir, "TodoFilter.java", "todo/TodoFilter", &ctx)?;
-            self.write(
-                &specification_dir,
-                "TodoSpecification.java",
-                "todo/TodoSpecification",
-                &ctx,
-            )?;
-            self.write(
-                &repository_dir,
-                "TodoRepository.java",
-                "todo/TodoRepository",
-                &ctx,
-            )?;
-            self.write(&dto_dir, "Todo.java", "todo/Todo", &ctx)?;
-            self.write(&service_dir, "TodoService.java", "todo/TodoService", &ctx)?;
-            self.write(
-                &controller_dir,
-                "TodoController.java",
-                "todo/TodoController",
-                &ctx,
-            )?;
-        }
-
-        // Standalone DB: postgres | mysql
-        if self.has("database-standalone") {
-            self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
-            self.write(
-                &enums_dir,
-                "DatabaseType.java",
-                "database/standalone/DatabaseType",
-                &ctx,
-            )?;
-            self.write(
-                &props_dir,
-                "DatabaseProperties.java",
-                "database/standalone/DatabaseProperties",
-                &ctx,
-            )?;
-            self.write(
-                &builder_dir,
-                "JdbcUrlBuilder.java",
-                "database/standalone/JdbcUrlBuilder",
-                &ctx,
-            )?;
-            self.write(
-                &config_dir,
-                "DatabaseConfig.java",
-                "database/standalone/DatabaseConfig",
-                &ctx,
-            )?;
-        }
-
-        // Replication DB: master-slave setup
-        if self.has("database-replication") {
-            self.write(&config_dir, "JpaConfig.java", "database/JpaConfig", &ctx)?;
-            // Enums
-            self.write(
-                &enums_dir,
-                "DatabaseType.java",
-                "database/replication/DatabaseType",
-                &ctx,
-            )?;
-            self.write(
-                &enums_dir,
-                "DataSourceType.java",
-                "database/replication/DataSourceType",
-                &ctx,
-            )?;
-            // Properties
-            self.write(
-                &props_dir,
-                "DatabaseProperties.java",
-                "database/replication/DatabaseProperties",
-                &ctx,
-            )?;
-            // Builders & factories
-            self.write(
-                &builder_dir,
-                "JdbcUrlBuilder.java",
-                "database/replication/JdbcUrlBuilder",
-                &ctx,
-            )?;
-            self.write(
-                &config_dir,
-                "HikariDataSourceFactory.java",
-                "database/replication/HikariDataSourceFactory",
-                &ctx,
-            )?;
-            // Config
-            self.write(
-                &config_dir,
-                "DatabaseConfig.java",
-                "database/replication/DatabaseConfig",
-                &ctx,
-            )?;
-            // Routing
-            self.write(
-                &routing_dir,
-                "RoutingDataSourceContext.java",
-                "database/replication/RoutingDataSourceContext",
-                &ctx,
-            )?;
-            self.write(
-                &routing_dir,
-                "LoadBalanceRoutingDataSource.java",
-                "database/replication/LoadBalanceRoutingDataSource",
-                &ctx,
-            )?;
-            self.write(
-                &routing_dir,
-                "TransactionRoutingAspect.java",
-                "database/replication/TransactionRoutingAspect",
-                &ctx,
-            )?;
+                // Verify the template exists in the macro array
+                let tpl_exists = TEMPLATES.iter().any(|(k, _)| k == tpl_key);
+                if tpl_exists {
+                    self.write(&dest_dir, &format!("{}.java", class_name), tpl_key, &ctx)?;
+                } else {
+                    eprintln!("Warning: Template '{}' defined in feature '{}' not found in TEMPLATES registry.", tpl_key, feature.key);
+                }
+            }
         }
 
         Ok(())
@@ -425,9 +173,5 @@ impl<'a> JavaCodeGenerator<'a> {
             std::fs::write(&path, self.hb.render(tpl, data)?)?;
         }
         Ok(())
-    }
-
-    fn has(&self, key: &str) -> bool {
-        self.features.iter().any(|f| f.key == key)
     }
 }

@@ -1,0 +1,33 @@
+conflicts = ["jwt"]
+description = "OAuth2/OIDC resource server with JWT validation"
+key = "oauth2"
+name = "OAuth2 Resource Server"
+requires = ["security"]
+
+[[docker_services]]
+depends_on = []
+healthcheck = "curl -f http://localhost:8080/health/ready"
+image = "quay.io/keycloak/keycloak:24.0"
+name = "keycloak"
+ports = ["8180:8080"]
+volumes = []
+
+[docker_services.environment]
+KEYCLOAK_ADMIN = "admin"
+KEYCLOAK_ADMIN_PASSWORD = "admin"
+
+[env_vars]
+OAUTH2_ISSUER_URI = "http://localhost:8180/realms/app"
+OAUTH2_JWK_URI = ""
+
+[java_files]
+"security/JwtConverterConfig" = "config/JwtConverterConfig"
+"security/OAuth2SecurityConfig" = "config/SecurityConfig"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-oauth2-resource-server"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-oauth2-client"
+group_id = "org.springframework.boot"

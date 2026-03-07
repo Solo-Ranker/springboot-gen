@@ -1,0 +1,37 @@
+conflicts = ["oauth2"]
+description = "Stateless JWT auth with access/refresh token rotation"
+docker_services = []
+key = "jwt"
+name = "JWT Authentication"
+requires = ["security"]
+
+[env_vars]
+JWT_ACCESS_EXPIRY_MS = "900000"
+JWT_REFRESH_EXPIRY_MS = "604800000"
+JWT_SECRET = "change-me-in-production-with-256bit-key"
+
+[java_files]
+"security/AuthController" = "controller/AuthController"
+"security/JwtAuthenticationFilter" = "config/JwtAuthenticationFilter"
+"security/JwtProperties" = "config/properties/JwtProperties"
+"security/JwtSecurityConfig" = "config/SecurityConfig"
+"security/JwtService" = "service/JwtService"
+"security/LoginRequest" = "dto/LoginRequest"
+"security/TokenResponse" = "dto/TokenResponse"
+
+[[maven_deps]]
+artifact_id = "jjwt-api"
+group_id = "io.jsonwebtoken"
+version = "0.12.6"
+
+[[maven_deps]]
+artifact_id = "jjwt-impl"
+group_id = "io.jsonwebtoken"
+scope = "runtime"
+version = "0.12.6"
+
+[[maven_deps]]
+artifact_id = "jjwt-jackson"
+group_id = "io.jsonwebtoken"
+scope = "runtime"
+version = "0.12.6"

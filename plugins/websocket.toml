@@ -1,0 +1,16 @@
+conflicts = []
+description = "STOMP WebSocket with SockJS fallback"
+docker_services = []
+key = "websocket"
+name = "WebSocket"
+requires = []
+
+[env_vars]
+WS_ALLOWED_ORIGINS = "*"
+
+[java_files]
+"integrations/WebSocketConfig" = "config/WebSocketConfig"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-websocket"
+group_id = "org.springframework.boot"

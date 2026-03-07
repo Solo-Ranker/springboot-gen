@@ -1,0 +1,18 @@
+conflicts = []
+description = "Spring Security with RBAC, CORS, and CSRF configuration"
+docker_services = []
+key = "security"
+name = "Spring Security"
+requires = []
+
+[env_vars]
+SECURITY_PASSWORD = "changeit"
+SECURITY_USER = "admin"
+
+[java_files]
+"security/BasicSecurityConfig" = "config/SecurityConfig"
+"security/UserDetailsServiceImpl" = "security/UserDetailsServiceImpl"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-security"
+group_id = "org.springframework.boot"

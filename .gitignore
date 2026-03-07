@@ -1,3 +1,5 @@
 .idea
 
 /target
+
+rewrite_toml_paths.py

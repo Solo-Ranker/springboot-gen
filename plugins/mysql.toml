@@ -1,0 +1,54 @@
+conflicts = ["postgres"]
+description = "MySQL 8 with Spring Data JPA and Flyway"
+key = "mysql"
+name = "MySQL"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "mysqladmin ping -h localhost"
+image = "mysql:8.3"
+name = "mysql"
+ports = ["3306:3306"]
+volumes = ["mysql_data:/var/lib/mysql"]
+
+[docker_services.environment]
+MYSQL_DATABASE = "${DB_NAME:-appdb}"
+MYSQL_ROOT_PASSWORD = "${DB_PASSWORD:-root}"
+
+[env_vars]
+DB_HOST = "localhost"
+DB_NAME = "appdb"
+DB_PASSWORD = "root"
+DB_PORT = "3306"
+DB_USER = "root"
+
+[java_files]
+"database/JpaConfig" = "config/JpaConfig"
+"todo/Todo" = "dto/Todo"
+"todo/TodoController" = "controller/TodoController"
+"todo/TodoEntity" = "model/TodoEntity"
+"todo/TodoFilter" = "dto/TodoFilter"
+"todo/TodoRepository" = "repository/TodoRepository"
+"todo/TodoService" = "service/TodoService"
+"todo/TodoSpecification" = "common/specification/TodoSpecification"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-data-jpa"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "mysql-connector-j"
+group_id = "com.mysql"
+
+[[maven_deps]]
+artifact_id = "flyway-core"
+group_id = "org.flywaydb"
+
+[[maven_deps]]
+artifact_id = "flyway-mysql"
+group_id = "org.flywaydb"
+
+[[maven_deps]]
+artifact_id = "HikariCP"
+group_id = "com.zaxxer"

@@ -1,0 +1,41 @@
+conflicts = [
+    "redis-sentinel",
+    "redis-cluster",
+]
+description = "Redis cache, pub/sub, and session store"
+key = "redis"
+name = "Redis (Standalone)"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "redis-cli ping"
+image = "redis:7.2-alpine"
+name = "redis"
+ports = ["6379:6379"]
+volumes = ["redis_data:/data"]
+
+[docker_services.environment]
+
+[env_vars]
+REDIS_DB = "0"
+REDIS_HOST = "localhost"
+REDIS_PASSWORD = ""
+REDIS_PORT = "6379"
+
+[java_files]
+"redis/CacheConfig" = "config/CacheConfig"
+"redis/RedisConfig" = "config/RedisConfig"
+"redis/RedisProperties" = "config/properties/RedisProperties"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-data-redis"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "lettuce-core"
+group_id = "io.lettuce"
+
+[[maven_deps]]
+artifact_id = "commons-pool2"
+group_id = "org.apache.commons"

@@ -1,0 +1,15 @@
+conflicts = ["database-replication"]
+description = "Standalone Database"
+docker_services = []
+key = "database-standalone"
+maven_deps = []
+name = "Database Standalone"
+requires = []
+
+[env_vars]
+
+[java_files]
+"database/standalone/DatabaseConfig" = "config/DatabaseConfig"
+"database/standalone/DatabaseProperties" = "config/properties/DatabaseProperties"
+"database/standalone/DatabaseType" = "common/enums/DatabaseType"
+"database/standalone/JdbcUrlBuilder" = "common/builder/JdbcUrlBuilder"

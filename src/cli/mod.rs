@@ -270,7 +270,7 @@ fn print_features() {
                 println!(
                     "    {} {:<20} {}",
                     style("•").dim(),
-                    style(feat.key).green(),
+                    style(&feat.key).green(),
                     style(&feat.description).dim()
                 );
             }

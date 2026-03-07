@@ -1,0 +1,9 @@
+conflicts = []
+description = "Kubernetes manifests (Deployment, Service, ConfigMap, HPA)"
+docker_services = []
+key = "kubernetes"
+maven_deps = []
+name = "Kubernetes"
+requires = ["actuator"]
+
+[env_vars]

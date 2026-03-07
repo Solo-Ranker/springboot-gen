@@ -1,0 +1,16 @@
+conflicts = []
+description = "Health checks, metrics, and management endpoints"
+docker_services = []
+key = "actuator"
+name = "Spring Actuator"
+requires = []
+
+[env_vars]
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-actuator"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "micrometer-registry-prometheus"
+group_id = "io.micrometer"

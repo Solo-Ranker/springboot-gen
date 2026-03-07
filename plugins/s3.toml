@@ -1,0 +1,42 @@
+conflicts = []
+description = "S3 object storage with MinIO in local dev"
+key = "s3"
+name = "AWS S3 / MinIO"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "curl -f http://localhost:9000/minio/health/live"
+image = "minio/minio:latest"
+name = "minio"
+ports = [
+    "9000:9000",
+    "9001:9001",
+]
+volumes = ["minio_data:/data"]
+
+[docker_services.environment]
+MINIO_ROOT_PASSWORD = "${MINIO_PASSWORD:-minioadmin}"
+MINIO_ROOT_USER = "${MINIO_USER:-minioadmin}"
+
+[env_vars]
+AWS_ACCESS_KEY_ID = "minioadmin"
+AWS_REGION = "us-east-1"
+AWS_SECRET_ACCESS_KEY = "minioadmin"
+S3_BUCKET = "app-uploads"
+S3_ENDPOINT = "http://localhost:9000"
+S3_PATH_STYLE = "true"
+
+[java_files]
+"integrations/S3Config" = "config/S3Config"
+"integrations/S3Service" = "service/S3Service"
+
+[[maven_deps]]
+artifact_id = "s3"
+group_id = "software.amazon.awssdk"
+version = "2.25.0"
+
+[[maven_deps]]
+artifact_id = "auth"
+group_id = "software.amazon.awssdk"
+version = "2.25.0"

@@ -1,0 +1,9 @@
+conflicts = []
+description = "Multi-stage Dockerfile and feature docker configs"
+docker_services = []
+key = "docker"
+maven_deps = []
+name = "Docker"
+requires = []
+
+[env_vars]

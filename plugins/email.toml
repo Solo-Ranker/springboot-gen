@@ -1,0 +1,36 @@
+conflicts = []
+description = "Email sending with Thymeleaf templates and MailHog dev server"
+key = "email"
+name = "Email (Spring Mail)"
+requires = []
+
+[[docker_services]]
+depends_on = []
+image = "mailhog/mailhog:latest"
+name = "mailhog"
+ports = [
+    "1025:1025",
+    "8025:8025",
+]
+volumes = []
+
+[docker_services.environment]
+
+[env_vars]
+MAIL_FROM = "noreply@example.com"
+MAIL_HOST = "localhost"
+MAIL_PASSWORD = ""
+MAIL_PORT = "1025"
+MAIL_USER = ""
+
+[java_files]
+"integrations/EmailConfig" = "config/EmailConfig"
+"integrations/EmailService" = "service/EmailService"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-mail"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-thymeleaf"
+group_id = "org.springframework.boot"

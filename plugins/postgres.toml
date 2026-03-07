@@ -1,0 +1,56 @@
+conflicts = ["mysql"]
+description = "PostgreSQL with Spring Data JPA, Flyway, and HikariCP"
+key = "postgres"
+name = "PostgreSQL"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "pg_isready -U ${DB_USER:-postgres}"
+image = "postgres:16-alpine"
+name = "postgres"
+ports = ["5432:5432"]
+volumes = ["postgres_data:/var/lib/postgresql/data"]
+
+[docker_services.environment]
+POSTGRES_DB = "${DB_NAME:-sample}"
+POSTGRES_PASSWORD = "${DB_PASSWORD:-supersecret}"
+POSTGRES_USER = "${DB_USER:-postgres}"
+
+[env_vars]
+DB_HOST = "localhost"
+DB_NAME = "appdb"
+DB_PASSWORD = "postgres"
+DB_POOL_MAX = "10"
+DB_PORT = "5432"
+DB_USER = "postgres"
+
+[java_files]
+"database/JpaConfig" = "config/JpaConfig"
+"todo/Todo" = "dto/Todo"
+"todo/TodoController" = "controller/TodoController"
+"todo/TodoEntity" = "model/TodoEntity"
+"todo/TodoFilter" = "dto/TodoFilter"
+"todo/TodoRepository" = "repository/TodoRepository"
+"todo/TodoService" = "service/TodoService"
+"todo/TodoSpecification" = "common/specification/TodoSpecification"
+
+[[maven_deps]]
+artifact_id = "spring-boot-starter-data-jpa"
+group_id = "org.springframework.boot"
+
+[[maven_deps]]
+artifact_id = "postgresql"
+group_id = "org.postgresql"
+
+[[maven_deps]]
+artifact_id = "flyway-database-postgresql"
+group_id = "org.flywaydb"
+
+[[maven_deps]]
+artifact_id = "flyway-core"
+group_id = "org.flywaydb"
+
+[[maven_deps]]
+artifact_id = "HikariCP"
+group_id = "com.zaxxer"

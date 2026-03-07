@@ -1,0 +1,32 @@
+conflicts = []
+description = "Micrometer Tracing with Zipkin/Jaeger exporter"
+key = "tracing"
+name = "Distributed Tracing"
+requires = ["actuator"]
+
+[[docker_services]]
+depends_on = []
+healthcheck = "wget -qO- http://localhost:9411/health"
+image = "openzipkin/zipkin:latest"
+name = "zipkin"
+ports = ["9411:9411"]
+volumes = []
+
+[docker_services.environment]
+
+[env_vars]
+TRACING_SAMPLE_RATE = "1.0"
+ZIPKIN_ENDPOINT = "http://localhost:9411/api/v2/spans"
+
+[[maven_deps]]
+artifact_id = "micrometer-tracing-bridge-brave"
+group_id = "io.micrometer"
+
+[[maven_deps]]
+artifact_id = "zipkin-reporter-brave"
+group_id = "io.zipkin.reporter2"
+
+[[maven_deps]]
+artifact_id = "loki-logback-appender"
+group_id = "com.github.loki4j"
+version = "1.5.2"

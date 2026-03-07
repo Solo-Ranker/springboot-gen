@@ -1,640 +1,80 @@
 use indexmap::IndexMap;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureSpec {
-    pub key: &'static str,
-    pub name: &'static str,
-    pub description: &'static str,
-    pub maven_deps: &'static [MavenDep],
-    pub requires: &'static [&'static str],
-    pub docker_services: &'static [DockerService],
-    pub env_vars: &'static [(&'static str, &'static str)],
-    pub java_files: &'static [&'static str],
-    pub conflicts: &'static [&'static str],
+    pub key: String,
+    pub name: String,
+    pub description: String,
+    #[serde(default)]
+    pub maven_deps: Vec<MavenDep>,
+    #[serde(default)]
+    pub requires: Vec<String>,
+    #[serde(default)]
+    pub docker_services: Vec<DockerService>,
+    #[serde(default)]
+    pub env_vars: IndexMap<String, String>,
+    #[serde(default)]
+    pub java_files: IndexMap<String, String>,
+    #[serde(default)]
+    pub conflicts: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MavenDep {
-    pub group_id: &'static str,
-    pub artifact_id: &'static str,
-    pub version: Option<&'static str>,
-    pub scope: Option<&'static str>,
+    pub group_id: String,
+    pub artifact_id: String,
+    pub version: Option<String>,
+    pub scope: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DockerService {
-    pub name: &'static str,
-    pub image: &'static str,
-    pub ports: &'static [&'static str],
-    pub environment: &'static [(&'static str, &'static str)],
-    pub volumes: &'static [&'static str],
-    pub healthcheck: Option<&'static str>,
-    pub depends_on: &'static [&'static str],
+    pub name: String,
+    pub image: String,
+    #[serde(default)]
+    pub ports: Vec<String>,
+    #[serde(default)]
+    pub environment: IndexMap<String, String>,
+    #[serde(default)]
+    pub volumes: Vec<String>,
+    pub healthcheck: Option<String>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
 }
 
-// ── Shorthand macros ──────────────────────────────────────────────────────────
+use include_dir::{include_dir, Dir};
 
-/// dep!("group", "artifact")
-/// dep!("group", "artifact", version: "1.0")
-/// dep!("group", "artifact", scope: "test")
-/// dep!("group", "artifact", version: "1.0", scope: "runtime")
-macro_rules! dep {
-    ($g:literal, $a:literal) => {
-        MavenDep {
-            group_id: $g,
-            artifact_id: $a,
-            version: None,
-            scope: None,
-        }
-    };
-    ($g:literal, $a:literal, version: $v:literal) => {
-        MavenDep {
-            group_id: $g,
-            artifact_id: $a,
-            version: Some($v),
-            scope: None,
-        }
-    };
-    ($g:literal, $a:literal, scope: $s:literal) => {
-        MavenDep {
-            group_id: $g,
-            artifact_id: $a,
-            version: None,
-            scope: Some($s),
-        }
-    };
-    ($g:literal, $a:literal, version: $v:literal, scope: $s:literal) => {
-        MavenDep {
-            group_id: $g,
-            artifact_id: $a,
-            version: Some($v),
-            scope: Some($s),
-        }
-    };
-}
-
-/// svc!("name", "image", ports: [...], env: [...], volumes: [...], health: "cmd", depends: [...])
-/// All fields after image are optional and can be omitted or reordered.
-macro_rules! svc {
-    ($name:literal, $image:literal
-     $(, ports:   $ports:expr)?
-     $(, env:     $env:expr)?
-     $(, volumes: $vols:expr)?
-     $(, health:  $hc:literal)?
-     $(, depends: $deps:expr)?
-     $(,)?
-    ) => {
-        DockerService {
-            name:        $name,
-            image:       $image,
-            ports:       svc!(@opt_slice $($ports)?),
-            environment: svc!(@opt_slice $($env)?),
-            volumes:     svc!(@opt_slice $($vols)?),
-            healthcheck: svc!(@opt_str $($hc)?),
-            depends_on:  svc!(@opt_slice $($deps)?),
-        }
-    };
-    (@opt_slice)         => { &[] };
-    (@opt_slice $e:expr) => { $e };
-    (@opt_str)           => { None };
-    (@opt_str $s:literal) => { Some($s) };
-}
-
-/// feature!(...) — build a FeatureSpec with all fields
-macro_rules! feature {
-    (
-        key:         $key:literal,
-        name:        $name:literal,
-        description: $desc:literal,
-        deps:        [$($dep:expr),* $(,)?],
-        requires:    [$($req:literal),* $(,)?],
-        services:    [$($svc:expr),* $(,)?],
-        env:         [$($ek:literal => $ev:literal),* $(,)?],
-        java:        [$($jf:literal),* $(,)?],
-        conflicts:   [$($cf:literal),* $(,)?],
-    ) => {
-        FeatureSpec {
-            key:             $key,
-            name:            $name,
-            description:     $desc,
-            maven_deps:      &[$($dep),*],
-            requires:        &[$($req),*],
-            docker_services: &[$($svc),*],
-            env_vars:        &[$(($ek, $ev)),*],
-            java_files:      &[$($jf),*],
-            conflicts:       &[$($cf),*],
-        }
-    };
-}
+static PLUGINS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/plugins");
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 pub fn all_features() -> Vec<FeatureSpec> {
-    vec![
-        feature!(
-            key:         "redis",
-            name:        "Redis (Standalone)",
-            description: "Redis cache, pub/sub, and session store",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-data-redis"),
-                dep!("io.lettuce", "lettuce-core"),
-                dep!("org.apache.commons", "commons-pool2"),
-            ],
-            requires:  [],
-            services:  [svc!("redis", "redis:7.2-alpine",
-                ports:   &["6379:6379"],
-                volumes: &["redis_data:/data"],
-                health:  "redis-cli ping",
-            )],
-            env: [
-                "REDIS_HOST" => "localhost",
-                "REDIS_PORT" => "6379",
-                "REDIS_PASSWORD" => "",
-                "REDIS_DB" => "0",
-            ],
-            java:      ["RedisConfig", "CacheConfig"],
-            conflicts: ["redis-sentinel", "redis-cluster"],
-        ),
-        feature!(
-            key:         "redis-sentinel",
-            name:        "Redis (Sentinel HA)",
-            description: "Redis with Sentinel for automatic failover",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-data-redis"),
-                dep!("io.lettuce", "lettuce-core"),
-                dep!("org.apache.commons", "commons-pool2"),
-            ],
-            requires:  [],
-            services:  [
-                svc!("redis-master", "redis:7.2-alpine",
-                    ports:   &["6379:6379"],
-                    volumes: &["redis_master_data:/data"],
-                    health:  "redis-cli ping",
-                ),
-                svc!("redis-replica-1", "redis:7.2-alpine",
-                    ports:   &["6380:6379"],
-                    volumes: &["redis_replica1_data:/data"],
-                    health:  "redis-cli ping",
-                    depends: &["redis-master"],
-                ),
-                svc!("redis-sentinel-1", "redis:7.2-alpine",
-                    ports:   &["26379:26379"],
-                    health:  "redis-cli -p 26379 ping",
-                    depends: &["redis-master", "redis-replica-1"],
-                ),
-            ],
-            env: [
-                "REDIS_SENTINEL_MASTER" => "mymaster",
-                "REDIS_SENTINEL_NODES" => "localhost:26379,localhost:26380,localhost:26381",
-                "REDIS_SENTINEL_PASSWORD" => "",
-                "REDIS_PASSWORD" => "",
-                "REDIS_DB" => "0",
-            ],
-            java:      ["RedisSentinelConfig", "CacheConfig"],
-            conflicts: ["redis", "redis-cluster"],
-        ),
-        feature!(
-            key:         "redis-cluster",
-            name:        "Redis (Cluster)",
-            description: "Redis Cluster for high availability and partitioning",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-data-redis"),
-                dep!("io.lettuce", "lettuce-core"),
-                dep!("org.apache.commons", "commons-pool2"),
-            ],
-            requires:  [],
-            services:  [
-                svc!("redis-node-1", "redis:7.2-alpine",
-                    ports:   &["7000:7000"],
-                    health:  "redis-cli -p 7000 ping",
-                ),
-                svc!("redis-node-2", "redis:7.2-alpine",
-                    ports:   &["7001:7001"],
-                    health:  "redis-cli -p 7001 ping",
-                ),
-                svc!("redis-node-3", "redis:7.2-alpine",
-                    ports:   &["7002:7002"],
-                    health:  "redis-cli -p 7002 ping",
-                ),
-            ],
-            env: [
-                "REDIS_CLUSTER_NODES" => "localhost:7000,localhost:7001,localhost:7002",
-                "REDIS_PASSWORD" => "",
-            ],
-            java:      ["RedisClusterConfig", "CacheConfig"],
-            conflicts: ["redis", "redis-sentinel"],
-        ),
-        feature!(
-            key:         "kafka",
-            name:        "Apache Kafka",
-            description: "Kafka producer/consumer with schema registry support",
-            deps: [
-                dep!("org.springframework.kafka", "spring-kafka"),
-                dep!("org.apache.kafka", "kafka-clients"),
-            ],
-            requires:  [],
-            services:  [
-                svc!("zookeeper", "confluentinc/cp-zookeeper:7.6.0",
-                    ports:   &["2181:2181"],
-                    env:     &[
-                        ("ZOOKEEPER_CLIENT_PORT", "2181"),
-                        ("ZOOKEEPER_TICK_TIME",   "2000"),
-                    ],
-                    volumes: &[
-                        "zookeeper_data:/var/lib/zookeeper/data",
-                        "zookeeper_log:/var/lib/zookeeper/log",
-                    ],
-                    health:  "echo ruok | nc -w 2 localhost 2181 | grep imok",
-                ),
-                svc!("kafka", "confluentinc/cp-kafka:7.6.0",
-                    ports:   &["9092:9092", "29092:29092"],
-                    env:     &[
-                        ("KAFKA_BROKER_ID",                                "1"),
-                        ("KAFKA_ZOOKEEPER_CONNECT",                        "zookeeper:2181"),
-                        ("KAFKA_LISTENERS",                                "INTERNAL://kafka:29092,EXTERNAL://0.0.0.0:9092"),
-                        ("KAFKA_ADVERTISED_LISTENERS",                     "INTERNAL://kafka:29092,EXTERNAL://localhost:9092"),
-                        ("KAFKA_LISTENER_SECURITY_PROTOCOL_MAP",           "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"),
-                        ("KAFKA_INTER_BROKER_LISTENER_NAME",               "INTERNAL"),
-                        ("KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR",         "1"),
-                        ("KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR", "1"),
-                        ("KAFKA_TRANSACTION_STATE_LOG_MIN_ISR",            "1"),
-                        ("KAFKA_AUTO_CREATE_TOPICS_ENABLE",                "true"),
-                    ],
-                    volumes: &["kafka_data:/var/lib/kafka/data"],
-                    health:  "kafka-broker-api-versions --bootstrap-server localhost:9092",
-                    depends: &["zookeeper"],
-                ),
-                svc!("kafka-ui", "provectuslabs/kafka-ui:latest",
-                    ports:   &["30000:8080"],
-                    env:     &[
-                        ("KAFKA_CLUSTERS_0_NAME",             "local-kafka"),
-                        ("KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS", "kafka:29092"),
-                        ("KAFKA_CLUSTERS_0_ZOOKEEPER",        "zookeeper:2181"),
-                        ("DYNAMIC_CONFIG_ENABLED",            "true"),
-                    ],
-                    depends: &["kafka"],
-                ),
-            ],
-            env: [
-                "KAFKA_BOOTSTRAP_SERVERS" => "localhost:9092",
-                "KAFKA_LISTENER_CONCURRENCY" => "3",
-            ],
-            java:      ["KafkaConfig", "KafkaProducerService", "KafkaConsumerService", "KafkaTopicConfig"],
-            conflicts: ["rabbitmq", "ibmmq"],
-        ),
-        feature!(
-            key:         "rabbitmq",
-            name:        "RabbitMQ",
-            description: "RabbitMQ messaging with Spring AMQP",
-            deps: [dep!("org.springframework.boot", "spring-boot-starter-amqp")],
-            requires:  [],
-            services:  [svc!("rabbitmq", "rabbitmq:3-management",
-                ports:   &["5672:5672", "15672:15672"],
-                env:     &[
-                    ("RABBITMQ_DEFAULT_USER", "${RABBITMQ_USER:-guest}"),
-                    ("RABBITMQ_DEFAULT_PASS", "${RABBITMQ_PASSWORD:-guest}"),
-                ],
-                volumes: &["rabbitmq_data:/var/lib/rabbitmq"],
-                health:  "rabbitmq-diagnostics -q ping",
-            )],
-            env: [
-                "RABBITMQ_HOST" => "localhost",
-                "RABBITMQ_PORT" => "5672",
-                "RABBITMQ_USER" => "guest",
-                "RABBITMQ_PASSWORD" => "guest",
-            ],
-            java:      ["RabbitMqConfig"],
-            conflicts: ["kafka", "ibmmq"],
-        ),
-        feature!(
-            key:         "ibmmq",
-            name:        "IBM MQ",
-            description: "IBM MQ (JMS) integration",
-            deps: [dep!("com.ibm.mq", "mq-jms-spring-boot-starter", version: "3.3.4")],
-            requires:  [],
-            services:  [svc!("ibmmq", "ibmcom/mq:latest",
-                ports:   &["1414:1414", "9443:9443"],
-                env:     &[("LICENSE", "accept"), ("MQ_QMGR_NAME", "${IBM_MQ_QM:-QM1}")],
-                volumes: &["ibmmq_data:/mnt/mqm"],
-            )],
-            env: [
-                "IBM_MQ_QM" => "QM1",
-                "IBM_MQ_CHANNEL" => "DEV.APP.SVRCONN",
-                "IBM_MQ_HOST" => "localhost",
-                "IBM_MQ_PORT" => "1414",
-                "IBM_MQ_USER" => "app",
-                "IBM_MQ_PASSWORD" => "",
-            ],
-            java:      ["IbmMqConfig"],
-            conflicts: ["kafka", "rabbitmq"],
-        ),
-        feature!(
-            key:         "postgres",
-            name:        "PostgreSQL",
-            description: "PostgreSQL with Spring Data JPA, Flyway, and HikariCP",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-data-jpa"),
-                dep!("org.postgresql", "postgresql"),
-                dep!("org.flywaydb", "flyway-database-postgresql"),
-                dep!("org.flywaydb", "flyway-core"),
-                dep!("com.zaxxer", "HikariCP"),
-            ],
-            requires:  [],
-            services:  [svc!("postgres", "postgres:16-alpine",
-                ports:   &["5432:5432"],
-                env:     &[
-                    ("POSTGRES_DB",       "${DB_NAME:-sample}"),
-                    ("POSTGRES_USER",     "${DB_USER:-postgres}"),
-                    ("POSTGRES_PASSWORD", "${DB_PASSWORD:-supersecret}"),
-                ],
-                volumes: &["postgres_data:/var/lib/postgresql/data"],
-                health:  "pg_isready -U ${DB_USER:-postgres}",
-            )],
-            env: [
-                "DB_HOST" => "localhost",
-                "DB_PORT" => "5432",
-                "DB_NAME" => "appdb",
-                "DB_USER" => "postgres",
-                "DB_PASSWORD" => "postgres",
-                "DB_POOL_MAX" => "10",
-            ],
-            java:      ["JpaConfig"],
-            conflicts: ["mysql"],
-        ),
-        feature!(
-            key:         "mysql",
-            name:        "MySQL",
-            description: "MySQL 8 with Spring Data JPA and Flyway",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-data-jpa"),
-                dep!("com.mysql", "mysql-connector-j"),
-                dep!("org.flywaydb", "flyway-core"),
-                dep!("org.flywaydb", "flyway-mysql"),
-                dep!("com.zaxxer", "HikariCP"),
-            ],
-            requires:  [],
-            services:  [svc!("mysql", "mysql:8.3",
-                ports:   &["3306:3306"],
-                env:     &[
-                    ("MYSQL_ROOT_PASSWORD", "${DB_PASSWORD:-root}"),
-                    ("MYSQL_DATABASE",      "${DB_NAME:-appdb}"),
-                ],
-                volumes: &["mysql_data:/var/lib/mysql"],
-                health:  "mysqladmin ping -h localhost",
-            )],
-            env: [
-                "DB_HOST" => "localhost",
-                "DB_PORT" => "3306",
-                "DB_NAME" => "appdb",
-                "DB_USER" => "root",
-                "DB_PASSWORD" => "root",
-            ],
-            java:      ["JpaConfig"],
-            conflicts: ["postgres"],
-        ),
-        feature!(
-            key:         "database-replication",
-            name:        "Database Replication",
-            description: "Database Replication (Master-Slave) routing data source",
-            deps:      [],
-            requires:  [],
-            services:  [],
-            env:       [],
-            java:      ["DatabaseConfig", "LoadBalanceRoutingDataSource", "RoutingDataSourceContext"],
-            conflicts: ["database-standalone"],
-        ),
-        feature!(
-            key:         "database-standalone",
-            name:        "Database Standalone",
-            description: "Standalone Database",
-            deps:      [],
-            requires:  [],
-            services:  [],
-            env:       [],
-            java:      [],
-            conflicts: ["database-replication"],
-        ),
-        feature!(
-            key:         "security",
-            name:        "Spring Security",
-            description: "Spring Security with RBAC, CORS, and CSRF configuration",
-            deps: [dep!("org.springframework.boot", "spring-boot-starter-security")],
-            requires:  [],
-            services:  [],
-            env: [
-                "SECURITY_USER" => "admin",
-                "SECURITY_PASSWORD" => "changeit",
-            ],
-            java:      ["SecurityConfig", "UserDetailsServiceImpl"],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "jwt",
-            name:        "JWT Authentication",
-            description: "Stateless JWT auth with access/refresh token rotation",
-            deps: [
-                dep!("io.jsonwebtoken", "jjwt-api",     version: "0.12.6"),
-                dep!("io.jsonwebtoken", "jjwt-impl",    version: "0.12.6", scope: "runtime"),
-                dep!("io.jsonwebtoken", "jjwt-jackson", version: "0.12.6", scope: "runtime"),
-            ],
-            requires:  ["security"],
-            services:  [],
-            env: [
-                "JWT_SECRET" => "change-me-in-production-with-256bit-key",
-                "JWT_ACCESS_EXPIRY_MS" => "900000",
-                "JWT_REFRESH_EXPIRY_MS" => "604800000",
-            ],
-            java:      ["JwtService", "JwtAuthenticationFilter", "JwtProperties", "AuthController", "TokenResponse"],
-            conflicts: ["oauth2"],
-        ),
-        feature!(
-            key:         "oauth2",
-            name:        "OAuth2 Resource Server",
-            description: "OAuth2/OIDC resource server with JWT validation",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-oauth2-resource-server"),
-                dep!("org.springframework.boot", "spring-boot-starter-oauth2-client"),
-            ],
-            requires:  ["security"],
-            services:  [svc!("keycloak", "quay.io/keycloak/keycloak:24.0",
-                ports:   &["8180:8080"],
-                env:     &[("KEYCLOAK_ADMIN", "admin"), ("KEYCLOAK_ADMIN_PASSWORD", "admin")],
-                health:  "curl -f http://localhost:8080/health/ready",
-            )],
-            env: [
-                "OAUTH2_ISSUER_URI" => "http://localhost:8180/realms/app",
-                "OAUTH2_JWK_URI" => "",
-            ],
-            java:      ["OAuth2SecurityConfig", "JwtConverterConfig"],
-            conflicts: ["jwt"],
-        ),
-        feature!(
-            key:         "openapi",
-            name:        "OpenAPI / Swagger",
-            description: "OpenAPI 3 documentation with Swagger UI",
-            deps: [dep!("org.springdoc", "springdoc-openapi-starter-webmvc-ui", version: "2.8.8")],
-            requires:  [],
-            services:  [],
-            env:       [],
-            java:      ["OpenApiConfig"],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "actuator",
-            name:        "Spring Actuator",
-            description: "Health checks, metrics, and management endpoints",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-actuator"),
-                dep!("io.micrometer", "micrometer-registry-prometheus"),
-            ],
-            requires:  [],
-            services:  [],
-            env:       [],
-            java:      [],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "tracing",
-            name:        "Distributed Tracing",
-            description: "Micrometer Tracing with Zipkin/Jaeger exporter",
-            deps: [
-                dep!("io.micrometer", "micrometer-tracing-bridge-brave"),
-                dep!("io.zipkin.reporter2", "zipkin-reporter-brave"),
-                dep!("com.github.loki4j", "loki-logback-appender", version: "1.5.2"),
-            ],
-            requires:  ["actuator"],
-            services:  [svc!("zipkin", "openzipkin/zipkin:latest",
-                ports:  &["9411:9411"],
-                health: "wget -qO- http://localhost:9411/health",
-            )],
-            env: [
-                "ZIPKIN_ENDPOINT" => "http://localhost:9411/api/v2/spans",
-                "TRACING_SAMPLE_RATE" => "1.0",
-            ],
-            java:      [],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "elasticsearch",
-            name:        "Elasticsearch",
-            description: "Spring Data Elasticsearch with Java client",
-            deps: [dep!("org.springframework.boot", "spring-boot-starter-data-elasticsearch")],
-            requires:  [],
-            services:  [svc!("elasticsearch", "elasticsearch:8.12.0",
-                ports:   &["9200:9200", "9300:9300"],
-                env:     &[
-                    ("discovery.type",        "single-node"),
-                    ("xpack.security.enabled","false"),
-                    ("ES_JAVA_OPTS",          "-Xms512m -Xmx512m"),
-                ],
-                volumes: &["es_data:/usr/share/elasticsearch/data"],
-                health:  "curl -f http://localhost:9200/_cluster/health",
-            )],
-            env: [
-                "ELASTICSEARCH_URIS" => "http://localhost:9200",
-                "ELASTICSEARCH_USER" => "elastic",
-                "ELASTICSEARCH_PASSWORD" => "elastic",
-            ],
-            java:      ["ElasticsearchConfig"],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "s3",
-            name:        "AWS S3 / MinIO",
-            description: "S3 object storage with MinIO in local dev",
-            deps: [
-                dep!("software.amazon.awssdk", "s3",   version: "2.25.0"),
-                dep!("software.amazon.awssdk", "auth", version: "2.25.0"),
-            ],
-            requires:  [],
-            services:  [svc!("minio", "minio/minio:latest",
-                ports:   &["9000:9000", "9001:9001"],
-                env:     &[
-                    ("MINIO_ROOT_USER",     "${MINIO_USER:-minioadmin}"),
-                    ("MINIO_ROOT_PASSWORD", "${MINIO_PASSWORD:-minioadmin}"),
-                ],
-                volumes: &["minio_data:/data"],
-                health:  "curl -f http://localhost:9000/minio/health/live",
-            )],
-            env: [
-                "S3_BUCKET" => "app-uploads",
-                "AWS_REGION" => "us-east-1",
-                "S3_ENDPOINT" => "http://localhost:9000",
-                "S3_PATH_STYLE" => "true",
-                "AWS_ACCESS_KEY_ID" => "minioadmin",
-                "AWS_SECRET_ACCESS_KEY" => "minioadmin",
-            ],
-            java:      ["S3Config", "S3Service"],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "email",
-            name:        "Email (Spring Mail)",
-            description: "Email sending with Thymeleaf templates and MailHog dev server",
-            deps: [
-                dep!("org.springframework.boot", "spring-boot-starter-mail"),
-                dep!("org.springframework.boot", "spring-boot-starter-thymeleaf"),
-            ],
-            requires:  [],
-            services:  [svc!("mailhog", "mailhog/mailhog:latest",
-                ports: &["1025:1025", "8025:8025"],
-            )],
-            env: [
-                "MAIL_HOST" => "localhost",
-                "MAIL_PORT" => "1025",
-                "MAIL_USER" => "",
-                "MAIL_PASSWORD" => "",
-                "MAIL_FROM" => "noreply@example.com",
-            ],
-            java:      ["EmailConfig", "EmailService"],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "websocket",
-            name:        "WebSocket",
-            description: "STOMP WebSocket with SockJS fallback",
-            deps: [dep!("org.springframework.boot", "spring-boot-starter-websocket")],
-            requires:  [],
-            services:  [],
-            env: ["WS_ALLOWED_ORIGINS" => "*"],
-            java:      ["WebSocketConfig", "WebSocketSecurityConfig"],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "docker",
-            name:        "Docker",
-            description: "Multi-stage Dockerfile and feature docker configs",
-            deps:      [],
-            requires:  [],
-            services:  [],
-            env:       [],
-            java:      [],
-            conflicts: [],
-        ),
-        feature!(
-            key:         "kubernetes",
-            name:        "Kubernetes",
-            description: "Kubernetes manifests (Deployment, Service, ConfigMap, HPA)",
-            deps:      [],
-            requires:  ["actuator"],
-            services:  [],
-            env:       [],
-            java:      [],
-            conflicts: [],
-        ),
-    ]
+    let mut features = Vec::new();
+    for file in PLUGINS_DIR.files() {
+        if let Some(ext) = file.path().extension() {
+            if ext == "toml" {
+                if let Some(contents) = file.contents_utf8() {
+                    match toml::from_str::<FeatureSpec>(contents) {
+                        Ok(f) => features.push(f),
+                        Err(e) => eprintln!("Warning: Failed to parse plugin {:?}: {}", file.path(), e),
+                    }
+                }
+            }
+        }
+    }
+    features
 }
 
 pub fn resolve_features(keys: &[String]) -> anyhow::Result<Vec<FeatureSpec>> {
     let all = all_features();
-    let mut resolved: IndexMap<String, FeatureSpec> = IndexMap::new();
+    let mut resolved_map: IndexMap<String, FeatureSpec> = IndexMap::new();
     let mut queue = keys.to_vec();
 
     while let Some(key) = queue.pop() {
-        if resolved.contains_key(&key) {
+        if resolved_map.contains_key(&key) {
             continue;
         }
 
@@ -649,18 +89,19 @@ pub fn resolve_features(keys: &[String]) -> anyhow::Result<Vec<FeatureSpec>> {
             })?
             .clone();
 
-        for dep in spec.requires {
-            if !resolved.contains_key(*dep) {
+        for dep in &spec.requires {
+            if !resolved_map.contains_key(dep) {
                 queue.push(dep.to_string());
             }
         }
 
-        resolved.insert(key, spec);
+        resolved_map.insert(key.clone(), spec);
     }
 
-    for (key, spec) in &resolved {
-        for conflict in spec.conflicts {
-            if resolved.contains_key(*conflict) {
+    // Check conflicts
+    for (key, spec) in &resolved_map {
+        for conflict in &spec.conflicts {
+            if resolved_map.contains_key(conflict) {
                 anyhow::bail!(
                     "Feature conflict: '{}' and '{}' cannot be used together",
                     key,
@@ -670,5 +111,35 @@ pub fn resolve_features(keys: &[String]) -> anyhow::Result<Vec<FeatureSpec>> {
         }
     }
 
-    Ok(resolved.into_values().collect())
+    // Topological sort (parents first, dependencies last) so parents can overwrite dependency templates
+    let mut sorted = Vec::new();
+    let mut visited = std::collections::HashSet::new();
+
+    fn visit(
+        node: &str,
+        map: &IndexMap<String, FeatureSpec>,
+        visited: &mut std::collections::HashSet<String>,
+        sorted: &mut Vec<FeatureSpec>,
+    ) {
+        if visited.contains(node) {
+            return;
+        }
+        visited.insert(node.to_string());
+        
+        if let Some(spec) = map.get(node) {
+            for dep in &spec.requires {
+                visit(dep, map, visited, sorted);
+            }
+            sorted.push(spec.clone());
+        }
+    }
+
+    for key in resolved_map.keys() {
+        visit(key, &resolved_map, &mut visited, &mut sorted);
+    }
+
+    // Reverse to get parents first
+    sorted.reverse();
+
+    Ok(sorted)
 }

@@ -1,0 +1,77 @@
+conflicts = [
+    "rabbitmq",
+    "ibmmq",
+]
+description = "Kafka producer/consumer with schema registry support"
+key = "kafka"
+name = "Apache Kafka"
+requires = []
+
+[[docker_services]]
+depends_on = []
+healthcheck = "echo ruok | nc -w 2 localhost 2181 | grep imok"
+image = "confluentinc/cp-zookeeper:7.6.0"
+name = "zookeeper"
+ports = ["2181:2181"]
+volumes = [
+    "zookeeper_data:/var/lib/zookeeper/data",
+    "zookeeper_log:/var/lib/zookeeper/log",
+]
+
+[docker_services.environment]
+ZOOKEEPER_CLIENT_PORT = "2181"
+ZOOKEEPER_TICK_TIME = "2000"
+
+[[docker_services]]
+depends_on = ["zookeeper"]
+healthcheck = "kafka-broker-api-versions --bootstrap-server localhost:9092"
+image = "confluentinc/cp-kafka:7.6.0"
+name = "kafka"
+ports = [
+    "9092:9092",
+    "29092:29092",
+]
+volumes = ["kafka_data:/var/lib/kafka/data"]
+
+[docker_services.environment]
+KAFKA_ADVERTISED_LISTENERS = "INTERNAL://kafka:29092,EXTERNAL://localhost:9092"
+KAFKA_AUTO_CREATE_TOPICS_ENABLE = "true"
+KAFKA_BROKER_ID = "1"
+KAFKA_INTER_BROKER_LISTENER_NAME = "INTERNAL"
+KAFKA_LISTENERS = "INTERNAL://kafka:29092,EXTERNAL://0.0.0.0:9092"
+KAFKA_LISTENER_SECURITY_PROTOCOL_MAP = "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR = "1"
+KAFKA_TRANSACTION_STATE_LOG_MIN_ISR = "1"
+KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR = "1"
+KAFKA_ZOOKEEPER_CONNECT = "zookeeper:2181"
+
+[[docker_services]]
+depends_on = ["kafka"]
+image = "provectuslabs/kafka-ui:latest"
+name = "kafka-ui"
+ports = ["30000:8080"]
+volumes = []
+
+[docker_services.environment]
+DYNAMIC_CONFIG_ENABLED = "true"
+KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS = "kafka:29092"
+KAFKA_CLUSTERS_0_NAME = "local-kafka"
+KAFKA_CLUSTERS_0_ZOOKEEPER = "zookeeper:2181"
+
+[env_vars]
+KAFKA_BOOTSTRAP_SERVERS = "localhost:9092"
+KAFKA_LISTENER_CONCURRENCY = "3"
+
+[java_files]
+"kafka/KafkaConfig" = "config/KafkaConfig"
+"kafka/KafkaConsumerService" = "service/KafkaConsumerService"
+"kafka/KafkaProducerService" = "service/KafkaProducerService"
+"kafka/KafkaTopicConfig" = "config/KafkaTopicConfig"
+
+[[maven_deps]]
+artifact_id = "spring-kafka"
+group_id = "org.springframework.kafka"
+
+[[maven_deps]]
+artifact_id = "kafka-clients"
+group_id = "org.apache.kafka"

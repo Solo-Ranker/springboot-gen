@@ -60,7 +60,7 @@ impl<'a> DockerGenerator<'a> {
         let docker_dir = out.join("docker");
         for feature in self.features {
             if !feature.docker_services.is_empty() {
-                let feat_dir = docker_dir.join(feature.key);
+                let feat_dir = docker_dir.join(&feature.key);
                 std::fs::create_dir_all(&feat_dir)?;
                 let ctx = self.component_compose_context(feature);
                 std::fs::write(
@@ -209,7 +209,7 @@ impl<'a> DockerGenerator<'a> {
     {
         let mut volumes: Vec<String> = Vec::new();
         for svc in services {
-            for vol in svc.volumes {
+            for vol in &svc.volumes {
                 if let Some(name) = vol.split(':').next() {
                     if !name.starts_with('.') && !name.starts_with('/') {
                         let name = name.to_string();
