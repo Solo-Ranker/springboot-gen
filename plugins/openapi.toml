@@ -1,3 +1,4 @@
+category = "API"
 conflicts = []
 description = "OpenAPI 3 documentation with Swagger UI"
 docker_services = []

@@ -1,3 +1,4 @@
+category = "Data Layer"
 conflicts = ["postgres"]
 description = "MySQL 8 with Spring Data JPA and Flyway"
 key = "mysql"

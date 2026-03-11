@@ -1,3 +1,4 @@
+category = "Data Layer"
 conflicts = []
 description = "Spring Data Elasticsearch with Java client"
 key = "elasticsearch"

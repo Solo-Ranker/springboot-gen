@@ -1,3 +1,4 @@
+category = "Security"
 conflicts = ["jwt"]
 description = "OAuth2/OIDC resource server with JWT validation"
 key = "oauth2"

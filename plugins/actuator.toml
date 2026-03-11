@@ -1,3 +1,4 @@
+category = "Observability"
 conflicts = []
 description = "Health checks, metrics, and management endpoints"
 docker_services = []

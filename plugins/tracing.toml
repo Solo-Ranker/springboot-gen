@@ -1,3 +1,4 @@
+category = "Observability"
 conflicts = []
 description = "Micrometer Tracing with Zipkin/Jaeger exporter"
 key = "tracing"

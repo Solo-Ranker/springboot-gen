@@ -1,3 +1,4 @@
+category = "Integrations"
 conflicts = []
 description = "Email sending with Thymeleaf templates and MailHog dev server"
 key = "email"

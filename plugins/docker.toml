@@ -1,3 +1,4 @@
+category = "Infrastructure"
 conflicts = []
 description = "Multi-stage Dockerfile and feature docker configs"
 docker_services = []

@@ -281,6 +281,7 @@ fn print_features() {
 
 fn interactive_init() -> Result<(NewArgs, ProjectConfig)> {
     use dialoguer::{theme::ColorfulTheme, Confirm};
+    use indexmap::IndexMap;
 
     let theme = ColorfulTheme::default();
 
@@ -291,26 +292,62 @@ fn interactive_init() -> Result<(NewArgs, ProjectConfig)> {
     let mut args = prompt_project_meta(&theme)?;
     let mut config = ProjectConfig::from_new_args(&args);
 
-    // 2. Database
-    prompt_database(&theme, &mut config, &mut args)?;
+    // 2. Dynamic Features
+    let features = crate::features::registry::all_features();
+    let mut categories: IndexMap<String, Vec<&crate::features::FeatureSpec>> = IndexMap::new();
+    
+    for feature in &features {
+        categories
+            .entry(feature.category.clone())
+            .or_default()
+            .push(feature);
+    }
 
-    // 3. Cache
-    prompt_cache(&theme, &mut config, &mut args)?;
+    use dialoguer::MultiSelect;
 
-    // 4. Messaging
-    prompt_messaging(&theme, &mut config, &mut args)?;
+    for (cat_name, cat_features) in categories {
+        if cat_features.is_empty() {
+            continue;
+        }
 
-    // 5. Security
-    prompt_security(&theme, &mut config, &mut args.features)?;
+        let labels: Vec<String> = cat_features
+            .iter()
+            .map(|f| format!("{} ({})", f.name, f.description))
+            .collect();
 
-    // 6. Observability (Actuator, Tracing)
-    prompt_observability(&theme, &mut args.features)?;
+        // Use multiselect for all options for maximum composability
+        let selections = MultiSelect::with_theme(&theme)
+            .with_prompt(&cat_name)
+            .items(&labels)
+            .interact()?;
 
-    // 7. Other features (OpenAPI, WebSocket, S3, Email, Elasticsearch)
-    prompt_others(&theme, &mut args.features)?;
+        for idx in selections {
+            args.features.push(cat_features[idx].key.clone());
+        }
+    }
 
-    // 8. Infrastructure (Docker, K8s)
-    prompt_infrastructure(&theme, &mut args.features)?;
+    // 3. Post-feature checks for specific properties
+    if args.features.iter().any(|f| f == "postgres" || f == "mysql") {
+        config.database.flyway_enabled = Confirm::with_theme(&theme)
+            .with_prompt("Enable Flyway migrations?")
+            .default(true)
+            .interact()?;
+    }
+
+    if args.features.contains(&"kafka".to_string()) {
+        let stack_options = [("sasl", "SASL Authentication"),
+            ("ssl", "SSL/TLS Encryption")];
+        let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
+
+        let selections = MultiSelect::with_theme(&theme)
+            .with_prompt("Kafka Stack Options (optional)")
+            .items(&labels)
+            .interact()?;
+
+        for idx in selections {
+            args.kafka_stack.push(stack_options[idx].0.to_string());
+        }
+    }
 
     let _emit = Confirm::with_theme(&theme)
         .with_prompt("Emit springboot-gen.toml config file?")
@@ -392,237 +429,4 @@ fn prompt_project_meta(theme: &dialoguer::theme::ColorfulTheme) -> Result<NewArg
         force: false,
         emit_config: true,
     })
-}
-
-fn prompt_database(
-    theme: &dialoguer::theme::ColorfulTheme,
-    config: &mut ProjectConfig,
-    args: &mut NewArgs,
-) -> Result<()> {
-    use dialoguer::{Confirm, Select};
-
-    let db_options = vec!["None", "PostgreSQL", "MySQL"];
-    let db_idx = Select::with_theme(theme)
-        .with_prompt("Database")
-        .items(&db_options)
-        .default(0)
-        .interact()?;
-
-    if db_idx == 0 {
-        return Ok(());
-    }
-
-    let db_feature = match db_idx {
-        1 => "postgres",
-        2 => "mysql",
-        _ => return Ok(()),
-    };
-    args.features.push(db_feature.to_string());
-
-    let arch_options = vec!["Standalone", "Replication (Master-Slave)"];
-    let arch_idx = Select::with_theme(theme)
-        .with_prompt("Database Architecture")
-        .items(&arch_options)
-        .default(0)
-        .interact()?;
-
-    let arch_feature = match arch_idx {
-        0 => "database-standalone",
-        1 => "database-replication",
-        _ => unreachable!(),
-    };
-    args.features.push(arch_feature.to_string());
-
-    let flyway = Confirm::with_theme(theme)
-        .with_prompt("Enable Flyway migrations?")
-        .default(true)
-        .interact()?;
-    config.database.flyway_enabled = flyway;
-
-    Ok(())
-}
-
-fn prompt_cache(
-    theme: &dialoguer::theme::ColorfulTheme,
-    config: &mut ProjectConfig,
-    args: &mut NewArgs,
-) -> Result<()> {
-    use dialoguer::{Confirm, Select};
-
-    if !Confirm::with_theme(theme)
-        .with_prompt("Add Redis Cache?")
-        .default(false)
-        .interact()?
-    {
-        return Ok(());
-    }
-
-    let modes = [("redis", "Standalone"),
-        ("redis-sentinel", "Sentinel HA"),
-        ("redis-cluster", "Cluster")];
-    let labels: Vec<&str> = modes.iter().map(|(_, l)| *l).collect();
-
-    let idx = Select::with_theme(theme)
-        .with_prompt("Redis mode")
-        .items(&labels)
-        .default(0)
-        .interact()?;
-
-    let (feature_key, redis_mode) = match idx {
-        0 => ("redis", "standalone"),
-        1 => ("redis-sentinel", "sentinel"),
-        _ => ("redis-cluster", "cluster"),
-    };
-
-    args.features.push(feature_key.to_string());
-    config.redis.mode = redis_mode.to_string();
-
-    Ok(())
-}
-
-fn prompt_messaging(
-    theme: &dialoguer::theme::ColorfulTheme,
-    _config: &mut ProjectConfig,
-    args: &mut NewArgs,
-) -> Result<()> {
-    use dialoguer::{MultiSelect, Select};
-
-    let options = vec!["None", "Kafka", "RabbitMQ", "IBM MQ"];
-    let idx = Select::with_theme(theme)
-        .with_prompt("Messaging / Broker")
-        .items(&options)
-        .default(0)
-        .interact()?;
-
-    match idx {
-        1 => {
-            args.features.push("kafka".to_string());
-
-            // Kafka stack options
-            let stack_options = [("sasl", "SASL Authentication"),
-                ("ssl", "SSL/TLS Encryption")];
-            let labels: Vec<&str> = stack_options.iter().map(|(_, l)| *l).collect();
-
-            let selections = MultiSelect::with_theme(theme)
-                .with_prompt("Kafka Stack Options (optional)")
-                .items(&labels)
-                .interact()?;
-
-            for idx in selections {
-                args.kafka_stack.push(stack_options[idx].0.to_string());
-            }
-        }
-        2 => args.features.push("rabbitmq".to_string()),
-        3 => args.features.push("ibmmq".to_string()),
-        _ => {}
-    }
-
-    Ok(())
-}
-
-fn prompt_security(
-    theme: &dialoguer::theme::ColorfulTheme,
-    _config: &mut ProjectConfig,
-    features: &mut Vec<String>,
-) -> Result<()> {
-    use dialoguer::Select;
-
-    let options = vec![
-        "None",
-        "Spring Security (Basic)",
-        "JWT Auth",
-        "OAuth2 Resource Server",
-    ];
-    let idx = Select::with_theme(theme)
-        .with_prompt("Security")
-        .items(&options)
-        .default(0)
-        .interact()?;
-
-    match idx {
-        1 => features.push("security".to_string()),
-        2 => {
-            features.push("security".to_string());
-            features.push("jwt".to_string());
-        }
-        3 => {
-            features.push("security".to_string());
-            features.push("oauth2".to_string());
-        }
-        _ => {}
-    }
-
-    Ok(())
-}
-
-fn prompt_observability(
-    theme: &dialoguer::theme::ColorfulTheme,
-    features: &mut Vec<String>,
-) -> Result<()> {
-    use dialoguer::MultiSelect;
-
-    let options = [("actuator", "Spring Actuator (Health/Metrics)"),
-        ("tracing", "Distributed Tracing (Micrometer + Zipkin)")];
-    let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
-
-    let selections = MultiSelect::with_theme(theme)
-        .with_prompt("Observability")
-        .items(&labels)
-        .interact()?;
-
-    for idx in selections {
-        features.push(options[idx].0.to_string());
-    }
-
-    Ok(())
-}
-
-fn prompt_others(
-    theme: &dialoguer::theme::ColorfulTheme,
-    features: &mut Vec<String>,
-) -> Result<()> {
-    use dialoguer::MultiSelect;
-
-    let options = [("openapi", "OpenAPI / Swagger UI"),
-        ("websocket", "WebSocket"),
-        ("s3", "AWS S3 / MinIO"),
-        ("email", "Email Support"),
-        ("elasticsearch", "Elasticsearch")];
-    let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
-
-    let selections = MultiSelect::with_theme(theme)
-        .with_prompt("Other Features")
-        .items(&labels)
-        .interact()?;
-
-    for idx in selections {
-        features.push(options[idx].0.to_string());
-    }
-
-    Ok(())
-}
-
-fn prompt_infrastructure(
-    theme: &dialoguer::theme::ColorfulTheme,
-    features: &mut Vec<String>,
-) -> Result<()> {
-    use dialoguer::MultiSelect;
-
-    let options = [("docker", "Docker Compose Support"),
-        ("kubernetes", "Kubernetes Manifests")];
-    let labels: Vec<&str> = options.iter().map(|(_, l)| *l).collect();
-    // Default select Docker
-    let defaults = vec![true, false];
-
-    let selections = MultiSelect::with_theme(theme)
-        .with_prompt("Infrastructure")
-        .items(&labels)
-        .defaults(&defaults)
-        .interact()?;
-
-    for idx in selections {
-        features.push(options[idx].0.to_string());
-    }
-
-    Ok(())
 }

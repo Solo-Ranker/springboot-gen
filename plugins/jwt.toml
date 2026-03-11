@@ -1,3 +1,4 @@
+category = "Security"
 conflicts = ["oauth2"]
 description = "Stateless JWT auth with access/refresh token rotation"
 docker_services = []

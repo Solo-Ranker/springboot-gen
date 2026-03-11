@@ -1,3 +1,4 @@
+category = "Data Layer"
 conflicts = [
     "redis-sentinel",
     "redis-cluster",

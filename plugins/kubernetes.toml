@@ -1,3 +1,4 @@
+category = "Infrastructure"
 conflicts = []
 description = "Kubernetes manifests (Deployment, Service, ConfigMap, HPA)"
 docker_services = []

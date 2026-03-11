@@ -1,3 +1,4 @@
+category = "API"
 conflicts = []
 description = "STOMP WebSocket with SockJS fallback"
 docker_services = []

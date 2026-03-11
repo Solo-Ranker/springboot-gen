@@ -1,3 +1,4 @@
+category = "Data Layer"
 conflicts = ["mysql"]
 description = "PostgreSQL with Spring Data JPA, Flyway, and HikariCP"
 key = "postgres"

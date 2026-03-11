@@ -3,11 +3,17 @@ use serde::{Deserialize, Serialize};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+fn default_category() -> String {
+    "Other".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureSpec {
     pub key: String,
     pub name: String,
     pub description: String,
+    #[serde(default = "default_category")]
+    pub category: String,
     #[serde(default)]
     pub maven_deps: Vec<MavenDep>,
     #[serde(default)]

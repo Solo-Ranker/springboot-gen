@@ -1,3 +1,4 @@
+category = "Data Layer"
 conflicts = ["database-replication"]
 description = "Standalone Database"
 docker_services = []

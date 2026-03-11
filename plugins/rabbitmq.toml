@@ -1,3 +1,4 @@
+category = "Messaging"
 conflicts = [
     "kafka",
     "ibmmq",

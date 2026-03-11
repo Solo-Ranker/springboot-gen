@@ -1,3 +1,4 @@
+category = "Integrations"
 conflicts = []
 description = "S3 object storage with MinIO in local dev"
 key = "s3"

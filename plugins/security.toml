@@ -1,3 +1,4 @@
+category = "Security"
 conflicts = []
 description = "Spring Security with RBAC, CORS, and CSRF configuration"
 docker_services = []
